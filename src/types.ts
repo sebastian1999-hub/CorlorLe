@@ -29,4 +29,6 @@ export type LeaderboardEntry = {
   username: string
   totalScore: number
   gamesPlayed: number
+  userColor?: string
+  targetColor?: string
 }

@@ -23,7 +23,7 @@ export function Leaderboard({ entries, title = 'Clasificacion general' }: Leader
         {entries.map((entry, index) => (
           <div
             key={entry.userId}
-            className="grid grid-cols-[32px_1fr_auto] items-center gap-2 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100 sm:grid-cols-[40px_1fr_110px] sm:gap-3"
+            className="grid grid-cols-[32px_1fr_auto_auto_auto] items-center gap-2 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100 sm:grid-cols-[40px_1fr_110px_44px_44px] sm:gap-3"
           >
             <span className="text-center font-bold text-amber-300">#{index + 1}</span>
             <div>
@@ -31,6 +31,20 @@ export function Leaderboard({ entries, title = 'Clasificacion general' }: Leader
               <p className="text-xs text-zinc-400">{entry.gamesPlayed} partida{entry.gamesPlayed !== 1 ? 's' : ''}</p>
             </div>
             <p className="text-right font-extrabold text-emerald-300">{entry.totalScore.toFixed(0)}</p>
+            {entry.targetColor && (
+              <div
+                className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
+                style={{ backgroundColor: entry.targetColor }}
+                title={`Objetivo: ${entry.targetColor}`}
+              />
+            )}
+            {entry.userColor && (
+              <div
+                className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
+                style={{ backgroundColor: entry.userColor }}
+                title={`Conseguido: ${entry.userColor}`}
+              />
+            )}
           </div>
         ))}
       </div>

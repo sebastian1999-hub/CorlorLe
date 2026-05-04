@@ -91,7 +91,7 @@ function App() {
           .select('user_id,score'),
         supabase
           .from('attempts')
-          .select('user_id,score')
+          .select('user_id,score,user_color,target_color')
           .eq('date', date),
       ])
 
@@ -144,6 +144,8 @@ function App() {
     // Daily leaderboard (one attempt per user today)
     const dailyAggregated = dailyUserIds.map((uid) => {
       const userAttempts = dailyAttempts.filter((a) => a.user_id === uid)
+      const userColor = userAttempts.length > 0 ? userAttempts[0].user_color : undefined
+      const targetColor = userAttempts.length > 0 ? userAttempts[0].target_color : undefined
       return {
         userId: uid,
         username:
@@ -154,6 +156,8 @@ function App() {
           ),
         totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
         gamesPlayed: userAttempts.length,
+        userColor,
+        targetColor,
       }
     })
     dailyAggregated.sort((a, b) => b.totalScore - a.totalScore)
