@@ -12,7 +12,7 @@ export function DifficultyPicker({ onSelect, onCancel }: DifficultyPickerProps) 
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-6 shadow-lg backdrop-blur">
       <h2 className="text-2xl font-black text-zinc-900">Selecciona dificultad</h2>
-      <p className="mt-1 text-sm text-zinc-600">El color objetivo es el mismo para todos hoy. Cambia solo la exigencia.</p>
+      <p className="mt-1 text-sm text-zinc-600">El color objetivo es el mismo para todos , la dificultad solo cambia el tiempo que podeis verlo.</p>
 
       <div className="mt-6 grid gap-3 md:grid-cols-3">
         {difficulties.map((difficulty) => (

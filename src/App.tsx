@@ -68,7 +68,7 @@ function App() {
     setLoadingData(true)
     setErrorText(null)
 
-    const [{ data: ownAttempt, error: ownError }, { data: attemptsData, error: leaderboardError }] =
+    const [{ data: ownAttempt, error: ownError }, { data: allAttemptsData, error: leaderboardError }] =
       await Promise.all([
         supabase
           .from('attempts')
@@ -78,10 +78,7 @@ function App() {
           .maybeSingle(),
         supabase
           .from('attempts')
-          .select('id,user_id,score,difficulty,error,time')
-          .eq('date', date)
-          .order('score', { ascending: false })
-          .limit(30),
+          .select('user_id,score'),
       ])
 
     if (ownError || leaderboardError) {
@@ -92,7 +89,7 @@ function App() {
 
     setHasPlayedToday(Boolean(ownAttempt))
 
-    const attempts = attemptsData ?? []
+    const attempts = allAttemptsData ?? []
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
 
     let usernameById: Record<string, string> = {}
@@ -109,22 +106,24 @@ function App() {
       }, {})
     }
 
-    setLeaderboard(
-      attempts.map((attempt) => ({
-        id: attempt.id,
-        userId: attempt.user_id,
+    // Aggregate all-time scores per user
+    const aggregated = userIds.map((uid) => {
+      const userAttempts = attempts.filter((a) => a.user_id === uid)
+      return {
+        userId: uid,
         username:
-          usernameById[attempt.user_id] ??
+          usernameById[uid] ??
           fallbackUsername(
-            attempt.user_id === session.user.id ? session.user.email : undefined,
-            attempt.user_id,
+            uid === session.user.id ? session.user.email : undefined,
+            uid,
           ),
-        score: attempt.score,
-        difficulty: attempt.difficulty,
-        error: attempt.error,
-        time: attempt.time,
-      })),
-    )
+        totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
+        gamesPlayed: userAttempts.length,
+      }
+    })
+    aggregated.sort((a, b) => b.totalScore - a.totalScore)
+
+    setLeaderboard(aggregated)
 
     setLoadingData(false)
   }, [date, session])
