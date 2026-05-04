@@ -23,6 +23,13 @@ type ResultState = {
 
 const defaultHsv: HSV = { h: 200, s: 70, v: 70 }
 
+const randomPracticeHex = (): string => {
+  const h = Math.floor(Math.random() * 360)
+  const s = 45 + Math.random() * 50
+  const v = 50 + Math.random() * 45
+  return hsvToHex({ h, s, v })
+}
+
 const fallbackUsername = (email: string | null | undefined, userId: string): string => {
   if (!email) {
     return `player-${userId.slice(0, 6)}`
@@ -45,6 +52,7 @@ function App() {
   const [result, setResult] = useState<ResultState | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [isPracticeMode, setIsPracticeMode] = useState(false)
+  const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
 
   const date = useMemo(() => todayKey(), [])
   const displayDate = useMemo(() => {
@@ -52,6 +60,7 @@ function App() {
     return `${day}/${month}/${year}`
   }, [date])
   const targetHex = useMemo(() => dailyTargetColor(date), [date])
+  const activeTargetHex = isPracticeMode ? (practiceTargetHex ?? targetHex) : targetHex
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
   const PRACTICE_USERS = ['admin@gmail.com', 'alicia@gmail.com']
   const isAdmin =
@@ -212,6 +221,7 @@ function App() {
       return
     }
     setIsPracticeMode(false)
+    setPracticeTargetHex(null)
     setErrorText(null)
     setResult(null)
     setStage('difficulty')
@@ -222,6 +232,7 @@ function App() {
       return
     }
     setIsPracticeMode(true)
+    setPracticeTargetHex(randomPracticeHex())
     setErrorText(null)
     setResult(null)
     setStage('difficulty')
@@ -242,12 +253,12 @@ function App() {
     setErrorText(null)
 
     const elapsedSeconds = (Date.now() - pickStartedAt) / 1000
-    const error = colorErrorPercent(targetHex, selectedHex)
+    const error = colorErrorPercent(activeTargetHex, selectedHex)
     const score = scoreAttempt(error, elapsedSeconds, difficulty)
 
     if (isPracticeMode && isAdmin) {
       setResult({
-        targetHex,
+        targetHex: activeTargetHex,
         userHex: selectedHex,
         error,
         score,
@@ -285,7 +296,7 @@ function App() {
     }
 
     setResult({
-      targetHex,
+      targetHex: activeTargetHex,
       userHex: selectedHex,
       error,
       score,
@@ -359,7 +370,7 @@ function App() {
         {stage === 'preview' && difficulty && (
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-8 text-center shadow-lg backdrop-blur">
             <p className="text-sm text-zinc-500">Memoriza este color</p>
-            <div className="mx-auto mt-4 h-52 w-full max-w-md rounded-3xl border border-zinc-900/15 shadow-inner transition-opacity duration-500" style={{ backgroundColor: targetHex }} />
+            <div className="mx-auto mt-4 h-52 w-full max-w-md rounded-3xl border border-zinc-900/15 shadow-inner transition-opacity duration-500" style={{ backgroundColor: activeTargetHex }} />
             <p className="mt-4 text-4xl font-black text-zinc-900">{previewCountdown.toFixed(1)}s</p>
             <p className="mt-2 text-sm text-zinc-600">{difficultyDescription[difficulty]}</p>
           </section>
