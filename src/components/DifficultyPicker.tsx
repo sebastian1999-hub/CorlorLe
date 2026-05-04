@@ -1,5 +1,5 @@
 import type { Difficulty } from '../types'
-import { difficultyDescription } from '../lib/scoring'
+import { difficultyLabel } from '../lib/scoring'
 
 type DifficultyPickerProps = {
   onSelect: (difficulty: Difficulty) => void
@@ -20,10 +20,9 @@ export function DifficultyPicker({ onSelect, onCancel }: DifficultyPickerProps) 
             key={difficulty}
             type="button"
             onClick={() => onSelect(difficulty)}
-            className="rounded-2xl border border-zinc-900/15 bg-zinc-950 p-4 text-left text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300"
+            className="rounded-2xl border border-zinc-900/15 bg-zinc-950 p-6 text-center text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300"
           >
-            <p className="text-lg font-bold uppercase tracking-wide text-amber-300">{difficulty}</p>
-            <p className="mt-2 text-sm text-zinc-300">{difficultyDescription[difficulty]}</p>
+            <p className="text-xl font-bold text-amber-300">{difficultyLabel[difficulty]}</p>
           </button>
         ))}
       </div>

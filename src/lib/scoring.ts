@@ -32,6 +32,12 @@ export const scoreAttempt = (
   return Math.round(total * 100) / 100
 }
 
+export const difficultyLabel: Record<Difficulty, string> = {
+  easy: 'Facil',
+  medium: 'Medio',
+  hard: 'Dificil',
+}
+
 export const difficultyDescription: Record<Difficulty, string> = {
   easy: '7s de vista previa. Multiplicador x1.0',
   medium: '4s de vista previa. Multiplicador x1.5',
