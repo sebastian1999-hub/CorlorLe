@@ -50,6 +50,8 @@ function App() {
   const [errorText, setErrorText] = useState<string | null>(null)
   const [result, setResult] = useState<ResultState | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general'>('daily')
   const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
 
@@ -76,7 +78,7 @@ function App() {
     setLoadingData(true)
     setErrorText(null)
 
-    const [{ data: ownAttempt, error: ownError }, { data: allAttemptsData, error: leaderboardError }] =
+    const [{ data: ownAttempt, error: ownError }, { data: allAttemptsData, error: leaderboardError }, { data: dailyAttemptsData, error: dailyError }] =
       await Promise.all([
         supabase
           .from('attempts')
@@ -87,10 +89,14 @@ function App() {
         supabase
           .from('attempts')
           .select('user_id,score'),
+        supabase
+          .from('attempts')
+          .select('user_id,score')
+          .eq('date', date),
       ])
 
-    if (ownError || leaderboardError) {
-      setErrorText((ownError || leaderboardError)?.message ?? 'No se pudo cargar el estado diario.')
+    if (ownError || leaderboardError || dailyError) {
+      setErrorText((ownError || leaderboardError || dailyError)?.message ?? 'No se pudo cargar el estado diario.')
       setLoadingData(false)
       return
     }
@@ -98,15 +104,18 @@ function App() {
     setHasPlayedToday(Boolean(ownAttempt))
 
     const attempts = allAttemptsData ?? []
+    const dailyAttempts = dailyAttemptsData ?? []
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
+    const dailyUserIds = [...new Set(dailyAttempts.map((attempt) => attempt.user_id))]
+    const allUserIds = [...new Set([...userIds, ...dailyUserIds])]
 
     let usernameById: Record<string, string> = {}
 
-    if (userIds.length > 0) {
+    if (allUserIds.length > 0) {
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id,username')
-        .in('id', userIds)
+        .in('id', allUserIds)
 
       usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
         acc[profile.id] = profile.username
@@ -130,8 +139,25 @@ function App() {
       }
     })
     aggregated.sort((a, b) => b.totalScore - a.totalScore)
-
     setLeaderboard(aggregated)
+
+    // Daily leaderboard (one attempt per user today)
+    const dailyAggregated = dailyUserIds.map((uid) => {
+      const userAttempts = dailyAttempts.filter((a) => a.user_id === uid)
+      return {
+        userId: uid,
+        username:
+          usernameById[uid] ??
+          fallbackUsername(
+            uid === session.user.id ? session.user.email : undefined,
+            uid,
+          ),
+        totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
+        gamesPlayed: userAttempts.length,
+      }
+    })
+    dailyAggregated.sort((a, b) => b.totalScore - a.totalScore)
+    setDailyLeaderboard(dailyAggregated)
 
     setLoadingData(false)
   }, [date, session])
@@ -356,7 +382,7 @@ function App() {
   }
 
   return (
-    <div className="bg-animated min-h-screen px-4 py-8 text-zinc-900">
+    <div className="bg-animated min-h-screen px-3 py-6 text-zinc-900 sm:px-4 sm:py-8">
       <main className="mx-auto max-w-5xl space-y-6">
         <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-zinc-900/10 bg-white/80 p-6 shadow-lg backdrop-blur md:flex-row md:items-center">
           <div>
@@ -395,7 +421,39 @@ function App() {
 
         {errorText && <p className="rounded-xl bg-red-100 p-3 text-sm text-red-700">{errorText}</p>}
 
-        {stage === 'home' && <Leaderboard entries={leaderboard} />}
+        {stage === 'home' && (
+          <div className="space-y-4">
+            <div className="flex rounded-2xl border border-zinc-900/10 bg-white/80 p-1 shadow backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setLeaderboardTab('daily')}
+                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
+                  leaderboardTab === 'daily'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                Diaria
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeaderboardTab('general')}
+                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
+                  leaderboardTab === 'general'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                General
+              </button>
+            </div>
+            {leaderboardTab === 'daily' ? (
+              <Leaderboard entries={dailyLeaderboard} title={`Clasificacion del dia · ${displayDate}`} />
+            ) : (
+              <Leaderboard entries={leaderboard} title="Clasificacion general" />
+            )}
+          </div>
+        )}
 
         {stage === 'preview' && difficulty && (
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-8 text-center shadow-lg backdrop-blur">

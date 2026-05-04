@@ -2,14 +2,15 @@ import type { LeaderboardEntry } from '../types'
 
 type LeaderboardProps = {
   entries: LeaderboardEntry[]
+  title?: string
 }
 
-export function Leaderboard({ entries }: LeaderboardProps) {
+export function Leaderboard({ entries, title = 'Clasificacion general' }: LeaderboardProps) {
   return (
-    <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-6 shadow-lg backdrop-blur">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-zinc-900">Clasificacion general</h2>
-        <p className="text-sm text-zinc-500">{entries.length} jugadores</p>
+    <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-1">
+        <h2 className="text-base font-bold text-zinc-900 sm:text-xl">{title}</h2>
+        <p className="text-sm text-zinc-500 whitespace-nowrap">{entries.length} jugadores</p>
       </div>
 
       <div className="space-y-2">
@@ -22,7 +23,7 @@ export function Leaderboard({ entries }: LeaderboardProps) {
         {entries.map((entry, index) => (
           <div
             key={entry.userId}
-            className="grid grid-cols-[40px_1fr_110px] items-center gap-3 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100"
+            className="grid grid-cols-[32px_1fr_auto] items-center gap-2 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100 sm:grid-cols-[40px_1fr_110px] sm:gap-3"
           >
             <span className="text-center font-bold text-amber-300">#{index + 1}</span>
             <div>
