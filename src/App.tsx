@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
-import { DifficultyPicker } from './components/DifficultyPicker'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
@@ -224,7 +223,9 @@ function App() {
     setPracticeTargetHex(null)
     setErrorText(null)
     setResult(null)
-    setStage('difficulty')
+    setDifficulty('hard')
+    setPickerHsv(defaultHsv)
+    setStage('preview')
   }
 
   const beginPracticeChallenge = () => {
@@ -235,11 +236,7 @@ function App() {
     setPracticeTargetHex(randomPracticeHex())
     setErrorText(null)
     setResult(null)
-    setStage('difficulty')
-  }
-
-  const handleDifficulty = (selectedDifficulty: Difficulty) => {
-    setDifficulty(selectedDifficulty)
+    setDifficulty('hard')
     setPickerHsv(defaultHsv)
     setStage('preview')
   }
@@ -362,10 +359,6 @@ function App() {
         {errorText && <p className="rounded-xl bg-red-100 p-3 text-sm text-red-700">{errorText}</p>}
 
         {stage === 'home' && <Leaderboard entries={leaderboard} />}
-
-        {stage === 'difficulty' && (
-          <DifficultyPicker onSelect={handleDifficulty} onCancel={() => setStage('home')} />
-        )}
 
         {stage === 'preview' && difficulty && (
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-8 text-center shadow-lg backdrop-blur">
