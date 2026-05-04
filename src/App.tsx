@@ -215,6 +215,43 @@ function App() {
     return () => window.clearInterval(interval)
   }, [difficulty, stage])
 
+  // Skip preview immediately on PrintScreen or window blur/visibility change
+  useEffect(() => {
+    if (stage !== 'preview') {
+      return
+    }
+
+    const skipToPickNow = () => {
+      setStage('pick')
+      setPickStartedAt(Date.now())
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen') {
+        e.preventDefault()
+        skipToPickNow()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        skipToPickNow()
+      }
+    }
+
+    const handleBlur = () => skipToPickNow()
+
+    window.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleBlur)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [stage])
+
   const beginChallenge = () => {
     if (hasPlayedToday) {
       return
