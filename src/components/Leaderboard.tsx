@@ -3,9 +3,10 @@ import type { LeaderboardEntry } from '../types'
 type LeaderboardProps = {
   entries: LeaderboardEntry[]
   title?: string
+  showColors?: boolean
 }
 
-export function Leaderboard({ entries, title = 'Clasificacion general' }: LeaderboardProps) {
+export function Leaderboard({ entries, title = 'Clasificacion general', showColors = true }: LeaderboardProps) {
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-1">
@@ -31,19 +32,37 @@ export function Leaderboard({ entries, title = 'Clasificacion general' }: Leader
               <p className="text-xs text-zinc-400">{entry.gamesPlayed} partida{entry.gamesPlayed !== 1 ? 's' : ''}</p>
             </div>
             <p className="text-right font-extrabold text-emerald-300">{entry.totalScore.toFixed(0)}</p>
-            {entry.targetColor && (
+            {showColors ? (
+              entry.targetColor && (
+                <div
+                  className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
+                  style={{ backgroundColor: entry.targetColor }}
+                  title={`Objetivo: ${entry.targetColor}`}
+                />
+              )
+            ) : (
               <div
                 className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
-                style={{ backgroundColor: entry.targetColor }}
-                title={`Objetivo: ${entry.targetColor}`}
-              />
+                title="Objetivo oculto"
+              >
+                <span className="flex h-full w-full items-center justify-center text-lg font-black text-zinc-200">?</span>
+              </div>
             )}
-            {entry.userColor && (
+            {showColors ? (
+              entry.userColor && (
+                <div
+                  className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
+                  style={{ backgroundColor: entry.userColor }}
+                  title={`Conseguido: ${entry.userColor}`}
+                />
+              )
+            ) : (
               <div
                 className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
-                style={{ backgroundColor: entry.userColor }}
-                title={`Conseguido: ${entry.userColor}`}
-              />
+                title="Color conseguido oculto"
+              >
+                <span className="flex h-full w-full items-center justify-center text-lg font-black text-zinc-200">?</span>
+              </div>
             )}
           </div>
         ))}

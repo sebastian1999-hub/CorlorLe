@@ -452,7 +452,11 @@ function App() {
               </button>
             </div>
             {leaderboardTab === 'daily' ? (
-              <Leaderboard entries={dailyLeaderboard} title={`Clasificacion del dia · ${displayDate}`} />
+              <Leaderboard
+                entries={dailyLeaderboard}
+                title={`Clasificacion del dia · ${displayDate}`}
+                showColors={hasPlayedToday}
+              />
             ) : (
               <Leaderboard entries={leaderboard} title="Clasificacion general" />
             )}
