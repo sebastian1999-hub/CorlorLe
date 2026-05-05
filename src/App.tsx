@@ -56,14 +56,24 @@ function App() {
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
+  const [challengeDate, setChallengeDate] = useState<string | null>(null)
 
   const date = useMemo(() => todayKey(), [])
+  const yesterdayKey = useMemo(() => {
+    const d = new Date(date + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }, [date])
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
     return `${day}/${month}/${year}`
   }, [viewDate])
   const targetHex = useMemo(() => dailyTargetColor(date), [date])
-  const activeTargetHex = isPracticeMode ? (practiceTargetHex ?? targetHex) : targetHex
+  const challengeTargetHex = useMemo(
+    () => isPracticeMode ? (practiceTargetHex ?? targetHex) : dailyTargetColor(challengeDate ?? date),
+    [isPracticeMode, practiceTargetHex, targetHex, challengeDate, date],
+  )
+  const activeTargetHex = challengeTargetHex
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
   const PRACTICE_USERS = ['admin@gmail.com', 'alicia@gmail.com']
   const isAdmin =
@@ -71,6 +81,7 @@ function App() {
     session?.user.user_metadata?.username === 'Admin' ||
     (session?.user.email !== undefined &&
       PRACTICE_USERS.includes(session.user.email.toLowerCase()))
+  const isOrvala = session?.user.email?.toLowerCase() === 'orvala@gmail.com'
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -336,6 +347,18 @@ function App() {
     }
     setIsPracticeMode(false)
     setPracticeTargetHex(null)
+    setChallengeDate(null)
+    setErrorText(null)
+    setResult(null)
+    setDifficulty('hard')
+    setPickerHsv(defaultHsv)
+    setStage('preview')
+  }
+
+  const beginYesterdayChallenge = () => {
+    setIsPracticeMode(false)
+    setPracticeTargetHex(null)
+    setChallengeDate(yesterdayKey)
     setErrorText(null)
     setResult(null)
     setDifficulty('hard')
@@ -384,9 +407,9 @@ function App() {
 
     const { error: insertError } = await supabase.from('attempts').insert({
       user_id: session.user.id,
-      date,
+      date: challengeDate ?? date,
       difficulty,
-      target_color: targetHex,
+      target_color: dailyTargetColor(challengeDate ?? date),
       user_color: selectedHex,
       error,
       time: elapsedSeconds,
@@ -451,6 +474,16 @@ function App() {
             >
               {hasPlayedToday ? 'Reto ya completado' : 'Reto Diario'}
             </button>
+            {isOrvala && (
+              <button
+                type="button"
+                onClick={beginYesterdayChallenge}
+                disabled={loadingData}
+                className="rounded-lg border border-violet-400 bg-violet-100 px-4 py-3 text-sm font-semibold text-violet-900 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Jugar Ayer
+              </button>
+            )}
             {isAdmin && (
               <button
                 type="button"
