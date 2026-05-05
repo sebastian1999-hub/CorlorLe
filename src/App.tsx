@@ -474,16 +474,6 @@ function App() {
             >
               {hasPlayedToday ? 'Reto ya completado' : 'Reto Diario'}
             </button>
-            {isOrvala && (
-              <button
-                type="button"
-                onClick={beginYesterdayChallenge}
-                disabled={loadingData}
-                className="rounded-lg border border-violet-400 bg-violet-100 px-4 py-3 text-sm font-semibold text-violet-900 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Jugar Ayer
-              </button>
-            )}
             {isAdmin && (
               <button
                 type="button"
