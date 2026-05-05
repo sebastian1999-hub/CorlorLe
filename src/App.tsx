@@ -21,6 +21,8 @@ type ResultState = {
 }
 
 const defaultHsv: HSV = { h: 200, s: 70, v: 70 }
+const WARMUP_START_DATE = '2026-05-06'
+const WARMUP_MAX_USES = 3
 
 const randomPracticeHex = (): string => {
   const h = Math.floor(Math.random() * 360)
@@ -57,13 +59,9 @@ function App() {
   const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
   const [challengeDate, setChallengeDate] = useState<string | null>(null)
+  const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
 
   const date = useMemo(() => todayKey(), [])
-  const yesterdayKey = useMemo(() => {
-    const d = new Date(date + 'T00:00:00Z')
-    d.setUTCDate(d.getUTCDate() - 1)
-    return d.toISOString().slice(0, 10)
-  }, [date])
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
     return `${day}/${month}/${year}`
@@ -75,13 +73,8 @@ function App() {
   )
   const activeTargetHex = challengeTargetHex
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
-  const PRACTICE_USERS = ['admin@gmail.com', 'alicia@gmail.com']
-  const isAdmin =
-    session?.user.app_metadata?.role === 'admin' ||
-    session?.user.user_metadata?.username === 'Admin' ||
-    (session?.user.email !== undefined &&
-      PRACTICE_USERS.includes(session.user.email.toLowerCase()))
-  const isOrvala = session?.user.email?.toLowerCase() === 'orvala@gmail.com'
+  const canUseWarmupFeature = date >= WARMUP_START_DATE
+  const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -281,6 +274,24 @@ function App() {
   }, [viewDate, refreshDailyLeaderboard, session])
 
   useEffect(() => {
+    if (!session || !warmupStorageKey || !canUseWarmupFeature) {
+      setWarmupUsesLeft(0)
+      return
+    }
+
+    const savedUses = window.localStorage.getItem(warmupStorageKey)
+    const parsedUses = savedUses ? Number.parseInt(savedUses, 10) : Number.NaN
+    const initialUses = Number.isFinite(parsedUses)
+      ? Math.max(0, Math.min(WARMUP_MAX_USES, parsedUses))
+      : WARMUP_MAX_USES
+
+    setWarmupUsesLeft(initialUses)
+    if (!savedUses) {
+      window.localStorage.setItem(warmupStorageKey, String(initialUses))
+    }
+  }, [session, warmupStorageKey, canUseWarmupFeature])
+
+  useEffect(() => {
     if (stage !== 'preview' || !difficulty) {
       return
     }
@@ -355,23 +366,18 @@ function App() {
     setStage('preview')
   }
 
-  const beginYesterdayChallenge = () => {
-    setIsPracticeMode(false)
-    setPracticeTargetHex(null)
-    setChallengeDate(yesterdayKey)
-    setErrorText(null)
-    setResult(null)
-    setDifficulty('hard')
-    setPickerHsv(defaultHsv)
-    setStage('preview')
-  }
-
   const beginPracticeChallenge = () => {
-    if (!isAdmin) {
+    if (!canUseWarmupFeature || hasPlayedToday || warmupUsesLeft <= 0 || !warmupStorageKey) {
       return
     }
+
+    const nextUses = warmupUsesLeft - 1
+    setWarmupUsesLeft(nextUses)
+    window.localStorage.setItem(warmupStorageKey, String(nextUses))
+
     setIsPracticeMode(true)
     setPracticeTargetHex(randomPracticeHex())
+    setChallengeDate(null)
     setErrorText(null)
     setResult(null)
     setDifficulty('hard')
@@ -391,7 +397,7 @@ function App() {
     const error = colorErrorPercent(activeTargetHex, selectedHex)
     const score = scoreAttempt(error, elapsedSeconds, difficulty)
 
-    if (isPracticeMode && isAdmin) {
+    if (isPracticeMode) {
       setResult({
         targetHex: activeTargetHex,
         userHex: selectedHex,
@@ -474,14 +480,16 @@ function App() {
             >
               {hasPlayedToday ? 'Reto ya completado' : 'Reto Diario'}
             </button>
-            {isAdmin && (
+            {canUseWarmupFeature && (
               <button
                 type="button"
                 onClick={beginPracticeChallenge}
-                disabled={loadingData}
+                disabled={loadingData || hasPlayedToday || warmupUsesLeft <= 0}
                 className="rounded-lg border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Modo Prueba
+                {hasPlayedToday
+                  ? 'Calentamiento bloqueado'
+                  : `Calentamiento (${warmupUsesLeft}/${WARMUP_MAX_USES})`}
               </button>
             )}
             <button
