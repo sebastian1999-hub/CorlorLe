@@ -62,6 +62,11 @@ function App() {
   const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
 
   const date = useMemo(() => todayKey(), [])
+  const yesterdayKey = useMemo(() => {
+    const d = new Date(date + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }, [date])
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
     return `${day}/${month}/${year}`
@@ -75,6 +80,7 @@ function App() {
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
   const canUseWarmupFeature = date >= WARMUP_START_DATE
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
+  const isLucas = session?.user.email?.toLowerCase() === 'lucas@gmail.com'
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -366,6 +372,17 @@ function App() {
     setStage('preview')
   }
 
+  const beginYesterdayChallenge = () => {
+    setIsPracticeMode(false)
+    setPracticeTargetHex(null)
+    setChallengeDate(yesterdayKey)
+    setErrorText(null)
+    setResult(null)
+    setDifficulty('hard')
+    setPickerHsv(defaultHsv)
+    setStage('preview')
+  }
+
   const beginPracticeChallenge = () => {
     if (!canUseWarmupFeature || hasPlayedToday || warmupUsesLeft <= 0 || !warmupStorageKey) {
       return
@@ -480,6 +497,16 @@ function App() {
             >
               {hasPlayedToday ? 'Reto ya completado' : 'Reto Diario'}
             </button>
+            {isLucas && (
+              <button
+                type="button"
+                onClick={beginYesterdayChallenge}
+                disabled={loadingData}
+                className="rounded-lg border border-violet-400 bg-violet-100 px-4 py-3 text-sm font-semibold text-violet-900 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Jugar Ayer
+              </button>
+            )}
             {canUseWarmupFeature && (
               <button
                 type="button"
