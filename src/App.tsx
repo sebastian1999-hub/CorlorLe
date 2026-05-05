@@ -52,14 +52,16 @@ function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
   const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general'>('daily')
+  const [viewDate, setViewDate] = useState<string>(() => todayKey())
+  const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
 
   const date = useMemo(() => todayKey(), [])
   const displayDate = useMemo(() => {
-    const [year, month, day] = date.split('-')
+    const [year, month, day] = viewDate.split('-')
     return `${day}/${month}/${year}`
-  }, [date])
+  }, [viewDate])
   const targetHex = useMemo(() => dailyTargetColor(date), [date])
   const activeTargetHex = isPracticeMode ? (practiceTargetHex ?? targetHex) : targetHex
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
@@ -70,6 +72,75 @@ function App() {
     (session?.user.email !== undefined &&
       PRACTICE_USERS.includes(session.user.email.toLowerCase()))
 
+  const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
+    if (!session) {
+      return
+    }
+
+    setLoadingData(true)
+    setErrorText(null)
+
+    const [{ data: ownAttempt }, { data: dailyAttemptsData, error: dailyError }] =
+      await Promise.all([
+        supabase
+          .from('attempts')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('date', dateKey)
+          .maybeSingle(),
+        supabase
+          .from('attempts')
+          .select('user_id,score,user_color,target_color')
+          .eq('date', dateKey),
+      ])
+
+    if (dailyError) {
+      setErrorText(dailyError.message ?? 'No se pudo cargar la clasificacion diaria.')
+      setLoadingData(false)
+      return
+    }
+
+    setHasPlayedOnViewDate(Boolean(ownAttempt))
+
+    const dailyAttempts = dailyAttemptsData ?? []
+    const dailyUserIds = [...new Set(dailyAttempts.map((a) => a.user_id))]
+
+    let usernameById: Record<string, string> = {}
+
+    if (dailyUserIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id,username')
+        .in('id', dailyUserIds)
+
+      usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+        acc[profile.id] = profile.username
+        return acc
+      }, {})
+    }
+
+    const dailyAggregated = dailyUserIds.map((uid) => {
+      const userAttempts = dailyAttempts.filter((a) => a.user_id === uid)
+      return {
+        userId: uid,
+        username:
+          usernameById[uid] ??
+          fallbackUsername(
+            uid === session.user.id ? session.user.email : undefined,
+            uid,
+          ),
+        totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
+        gamesPlayed: userAttempts.length,
+        userColor: userAttempts[0]?.user_color,
+        targetColor: userAttempts[0]?.target_color,
+      }
+    })
+    dailyAggregated.sort((a, b) => b.totalScore - a.totalScore)
+    setDailyLeaderboard(dailyAggregated)
+
+    setLoadingData(false)
+  }, [session])
+
   const refreshDailyState = useCallback(async () => {
     if (!session) {
       return
@@ -78,7 +149,7 @@ function App() {
     setLoadingData(true)
     setErrorText(null)
 
-    const [{ data: ownAttempt, error: ownError }, { data: allAttemptsData, error: leaderboardError }, { data: dailyAttemptsData, error: dailyError }] =
+    const [{ data: ownAttempt, error: ownError }, { data: allAttemptsData, error: leaderboardError }] =
       await Promise.all([
         supabase
           .from('attempts')
@@ -89,14 +160,10 @@ function App() {
         supabase
           .from('attempts')
           .select('user_id,score'),
-        supabase
-          .from('attempts')
-          .select('user_id,score,user_color,target_color')
-          .eq('date', date),
       ])
 
-    if (ownError || leaderboardError || dailyError) {
-      setErrorText((ownError || leaderboardError || dailyError)?.message ?? 'No se pudo cargar el estado diario.')
+    if (ownError || leaderboardError) {
+      setErrorText((ownError || leaderboardError)?.message ?? 'No se pudo cargar el estado diario.')
       setLoadingData(false)
       return
     }
@@ -104,18 +171,15 @@ function App() {
     setHasPlayedToday(Boolean(ownAttempt))
 
     const attempts = allAttemptsData ?? []
-    const dailyAttempts = dailyAttemptsData ?? []
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
-    const dailyUserIds = [...new Set(dailyAttempts.map((attempt) => attempt.user_id))]
-    const allUserIds = [...new Set([...userIds, ...dailyUserIds])]
 
     let usernameById: Record<string, string> = {}
 
-    if (allUserIds.length > 0) {
+    if (userIds.length > 0) {
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id,username')
-        .in('id', allUserIds)
+        .in('id', userIds)
 
       usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
         acc[profile.id] = profile.username
@@ -123,7 +187,6 @@ function App() {
       }, {})
     }
 
-    // Aggregate all-time scores per user
     const aggregated = userIds.map((uid) => {
       const userAttempts = attempts.filter((a) => a.user_id === uid)
       return {
@@ -140,28 +203,6 @@ function App() {
     })
     aggregated.sort((a, b) => b.totalScore - a.totalScore)
     setLeaderboard(aggregated)
-
-    // Daily leaderboard (one attempt per user today)
-    const dailyAggregated = dailyUserIds.map((uid) => {
-      const userAttempts = dailyAttempts.filter((a) => a.user_id === uid)
-      const userColor = userAttempts.length > 0 ? userAttempts[0].user_color : undefined
-      const targetColor = userAttempts.length > 0 ? userAttempts[0].target_color : undefined
-      return {
-        userId: uid,
-        username:
-          usernameById[uid] ??
-          fallbackUsername(
-            uid === session.user.id ? session.user.email : undefined,
-            uid,
-          ),
-        totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
-        gamesPlayed: userAttempts.length,
-        userColor,
-        targetColor,
-      }
-    })
-    dailyAggregated.sort((a, b) => b.totalScore - a.totalScore)
-    setDailyLeaderboard(dailyAggregated)
 
     setLoadingData(false)
   }, [date, session])
@@ -220,6 +261,13 @@ function App() {
     }
     void refreshDailyState()
   }, [refreshDailyState, session])
+
+  useEffect(() => {
+    if (!session) {
+      return
+    }
+    void refreshDailyLeaderboard(viewDate)
+  }, [viewDate, refreshDailyLeaderboard, session])
 
   useEffect(() => {
     if (stage !== 'preview' || !difficulty) {
@@ -452,11 +500,41 @@ function App() {
               </button>
             </div>
             {leaderboardTab === 'daily' ? (
-              <Leaderboard
-                entries={dailyLeaderboard}
-                title={`Clasificacion del dia · ${displayDate}`}
-                showColors={hasPlayedToday}
-              />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date(viewDate + 'T00:00:00Z')
+                      d.setUTCDate(d.getUTCDate() - 1)
+                      setViewDate(d.toISOString().slice(0, 10))
+                    }}
+                    className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                    aria-label="Dia anterior"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-sm font-semibold text-zinc-700">{displayDate}</span>
+                  <button
+                    type="button"
+                    disabled={viewDate >= date}
+                    onClick={() => {
+                      const d = new Date(viewDate + 'T00:00:00Z')
+                      d.setUTCDate(d.getUTCDate() + 1)
+                      setViewDate(d.toISOString().slice(0, 10))
+                    }}
+                    className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                    aria-label="Dia siguiente"
+                  >
+                    ›
+                  </button>
+                </div>
+                <Leaderboard
+                  entries={dailyLeaderboard}
+                  title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
+                  showColors={viewDate < date || hasPlayedOnViewDate}
+                />
+              </div>
             ) : (
               <Leaderboard entries={leaderboard} title="Clasificacion general" />
             )}
