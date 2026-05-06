@@ -22,9 +22,11 @@ export const scoreAttempt = (
   error: number,
   seconds: number,
   difficulty: Difficulty,
+  timeCapOverrideSeconds?: number,
 ): number => {
   const accuracy = Math.max(0, 100 - error)
-  const timeBonusFactor = Math.max(0, 1 - seconds / timeCaps[difficulty])
+  const timeCap = timeCapOverrideSeconds ?? timeCaps[difficulty]
+  const timeBonusFactor = Math.max(0, 1 - seconds / timeCap)
 
   const baseScore = accuracy * 10 + timeBonusFactor * 100
   const total = baseScore * multipliers[difficulty]

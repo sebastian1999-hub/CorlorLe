@@ -23,6 +23,11 @@ type ResultState = {
 const defaultHsv: HSV = { h: 200, s: 70, v: 70 }
 const WARMUP_START_DATE = '2026-05-06'
 const WARMUP_MAX_USES = 3
+const BIRTHDAY_BONUS_SECONDS = 10
+const BIRTHDAY_USERNAME = 'lucas'
+
+const normalizeUsername = (value: string): string => value.trim().toLowerCase()
+const isDaySeven = (dateKey: string): boolean => dateKey.split('-')[2] === '07'
 
 const randomPracticeHex = (): string => {
   const h = Math.floor(Math.random() * 360)
@@ -63,15 +68,25 @@ function App() {
   const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
 
   const date = useMemo(() => todayKey(), [])
-  const yesterdayKey = useMemo(() => {
-    const d = new Date(date + 'T00:00:00Z')
-    d.setUTCDate(d.getUTCDate() - 1)
-    return d.toISOString().slice(0, 10)
-  }, [date])
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
     return `${day}/${month}/${year}`
   }, [viewDate])
+  const currentUsername = useMemo(() => {
+    const metadataUsername = session?.user.user_metadata?.username
+    if (typeof metadataUsername === 'string' && metadataUsername.trim().length > 0) {
+      return metadataUsername.trim()
+    }
+    return fallbackUsername(session?.user.email, session?.user.id ?? 'anon')
+  }, [session])
+  const isLucasUser = useMemo(
+    () => normalizeUsername(currentUsername) === BIRTHDAY_USERNAME,
+    [currentUsername],
+  )
+  const isLucasBirthdayToday = useMemo(
+    () => isLucasUser && isDaySeven(date),
+    [isLucasUser, date],
+  )
   const targetHex = useMemo(() => dailyTargetColor(date), [date])
   const challengeTargetHex = useMemo(
     () => isPracticeMode ? (practiceTargetHex ?? targetHex) : dailyTargetColor(challengeDate ?? date),
@@ -81,6 +96,12 @@ function App() {
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
   const canUseWarmupFeature = date >= WARMUP_START_DATE
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
+  const activeChallengeDateKey = challengeDate ?? date
+  const hasBirthdayBonusForActiveChallenge =
+    !isPracticeMode && isLucasUser && isDaySeven(activeChallengeDateKey)
+  const activeTimeCap = difficulty
+    ? timeCaps[difficulty] + (hasBirthdayBonusForActiveChallenge ? BIRTHDAY_BONUS_SECONDS : 0)
+    : 0
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -133,12 +154,20 @@ function App() {
       const userAttempts = dailyAttempts.filter((a) => a.user_id === uid)
       return {
         userId: uid,
-        username:
-          usernameById[uid] ??
-          fallbackUsername(
-            uid === session.user.id ? session.user.email : undefined,
-            uid,
-          ),
+        username: (() => {
+          const baseUsername =
+            usernameById[uid] ??
+            fallbackUsername(
+              uid === session.user.id ? session.user.email : undefined,
+              uid,
+            )
+
+          if (isDaySeven(dateKey) && normalizeUsername(baseUsername) === BIRTHDAY_USERNAME) {
+            return `${baseUsername} 👑`
+          }
+
+          return baseUsername
+        })(),
         totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
         gamesPlayed: userAttempts.length,
         userColor: userAttempts[0]?.user_color,
@@ -386,17 +415,6 @@ function App() {
     setStage('preview')
   }
 
-  const beginYesterdayChallenge = () => {
-    setIsPracticeMode(false)
-    setPracticeTargetHex(null)
-    setChallengeDate(yesterdayKey)
-    setErrorText(null)
-    setResult(null)
-    setDifficulty('hard')
-    setPickerHsv(defaultHsv)
-    setStage('preview')
-  }
-
   const beginPracticeChallenge = () => {
     if (!canUseWarmupFeature || hasPlayedToday || warmupUsesLeft <= 0 || !warmupStorageKey) {
       return
@@ -425,8 +443,11 @@ function App() {
     setErrorText(null)
 
     const elapsedSeconds = (Date.now() - pickStartedAt) / 1000
+    const effectiveSeconds = hasBirthdayBonusForActiveChallenge
+      ? Math.max(0, elapsedSeconds - BIRTHDAY_BONUS_SECONDS)
+      : elapsedSeconds
     const error = colorErrorPercent(activeTargetHex, selectedHex)
-    const score = scoreAttempt(error, elapsedSeconds, difficulty)
+    const score = scoreAttempt(error, effectiveSeconds, difficulty, activeTimeCap)
 
     if (isPracticeMode) {
       setResult({
@@ -434,7 +455,7 @@ function App() {
         userHex: selectedHex,
         error,
         score,
-        seconds: elapsedSeconds,
+        seconds: effectiveSeconds,
         difficulty,
       })
       setStage('result')
@@ -449,7 +470,7 @@ function App() {
       target_color: dailyTargetColor(challengeDate ?? date),
       user_color: selectedHex,
       error,
-      time: elapsedSeconds,
+      time: effectiveSeconds,
       score,
     })
 
@@ -472,7 +493,7 @@ function App() {
       userHex: selectedHex,
       error,
       score,
-      seconds: elapsedSeconds,
+      seconds: effectiveSeconds,
       difficulty,
     })
     setHasPlayedToday(true)
@@ -532,6 +553,12 @@ function App() {
             </button>
           </div>
         </header>
+
+        {isLucasBirthdayToday && (
+          <p className="rounded-xl border border-amber-300 bg-amber-100 p-3 text-sm font-semibold text-amber-900">
+            Feliz cumpleanos, Lucas. Hoy tienes +{BIRTHDAY_BONUS_SECONDS}s en el reto diario.
+          </p>
+        )}
 
         {errorText && <p className="rounded-xl bg-red-100 p-3 text-sm text-red-700">{errorText}</p>}
 
@@ -623,11 +650,16 @@ function App() {
               <div className="rounded-2xl border border-zinc-900/10 bg-zinc-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-zinc-500">Tiempo y bonus estimado</p>
                 <p className="mt-2 text-sm text-zinc-700">
-                  Cuenta regresiva: <span className="font-semibold">{Math.max(0, timeCaps[difficulty] - pickElapsedSeconds).toFixed(1)}s</span>
+                  Cuenta regresiva: <span className="font-semibold">{Math.max(0, activeTimeCap - pickElapsedSeconds).toFixed(1)}s</span>
                 </p>
                 <p className="mt-1 text-sm text-zinc-700">
-                  Bonus de tiempo si confirmas ahora: <span className="font-semibold">{(Math.max(0, 1 - pickElapsedSeconds / timeCaps[difficulty]) * 100).toFixed(1)}</span> pts
+                  Bonus de tiempo si confirmas ahora: <span className="font-semibold">{(Math.max(0, 1 - pickElapsedSeconds / activeTimeCap) * 100).toFixed(1)}</span> pts
                 </p>
+                {hasBirthdayBonusForActiveChallenge && (
+                  <p className="mt-1 text-xs font-semibold text-amber-700">
+                    Feliz cumpleanos: +{BIRTHDAY_BONUS_SECONDS}s de margen para este reto.
+                  </p>
+                )}
               </div>
             </div>
 
