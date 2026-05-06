@@ -5,7 +5,7 @@ import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
 import { dailyTargetColor, todayKey } from './lib/dailyChallenge'
-import { difficultyDescription, previewSecondsByDifficulty, scoreAttempt } from './lib/scoring'
+import { difficultyDescription, previewSecondsByDifficulty, scoreAttempt, timeCaps } from './lib/scoring'
 import { supabase } from './lib/supabase'
 import type { Difficulty, HSV, LeaderboardEntry } from './types'
 
@@ -47,6 +47,7 @@ function App() {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [previewCountdown, setPreviewCountdown] = useState(0)
   const [pickStartedAt, setPickStartedAt] = useState<number | null>(null)
+  const [pickElapsedSeconds, setPickElapsedSeconds] = useState(0)
   const [pickerHsv, setPickerHsv] = useState<HSV>(defaultHsv)
   const [submitting, setSubmitting] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
@@ -319,6 +320,20 @@ function App() {
 
     return () => window.clearInterval(interval)
   }, [difficulty, stage])
+
+  useEffect(() => {
+    if (stage !== 'pick' || !difficulty || pickStartedAt === null) {
+      return
+    }
+
+    const tick = () => {
+      setPickElapsedSeconds((Date.now() - pickStartedAt) / 1000)
+    }
+
+    tick()
+    const interval = window.setInterval(tick, 100)
+    return () => window.clearInterval(interval)
+  }, [difficulty, pickStartedAt, stage])
 
   // Skip preview immediately on PrintScreen or window blur/visibility change
   useEffect(() => {
@@ -605,6 +620,15 @@ function App() {
                 Recrealo con tu memoria
               </div>
               <p className="text-sm text-zinc-600">Dificultad: {difficulty.toUpperCase()}</p>
+              <div className="rounded-2xl border border-zinc-900/10 bg-zinc-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Tiempo y bonus estimado</p>
+                <p className="mt-2 text-sm text-zinc-700">
+                  Cuenta regresiva: <span className="font-semibold">{Math.max(0, timeCaps[difficulty] - pickElapsedSeconds).toFixed(1)}s</span>
+                </p>
+                <p className="mt-1 text-sm text-zinc-700">
+                  Bonus de tiempo si confirmas ahora: <span className="font-semibold">{(Math.max(0, 1 - pickElapsedSeconds / timeCaps[difficulty]) * 100).toFixed(1)}</span> pts
+                </p>
+              </div>
             </div>
 
             <div className="space-y-4">

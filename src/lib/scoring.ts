@@ -6,7 +6,7 @@ const multipliers: Record<Difficulty, number> = {
   hard: 2.2,
 }
 
-const timeCaps: Record<Difficulty, number> = {
+export const timeCaps: Record<Difficulty, number> = {
   easy: 60,
   medium: 45,
   hard: 30,
