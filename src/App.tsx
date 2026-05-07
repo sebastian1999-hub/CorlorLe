@@ -25,6 +25,7 @@ const WARMUP_START_DATE = '2026-05-06'
 const WARMUP_MAX_USES = 3
 const BIRTHDAY_BONUS_SECONDS = 10
 const BIRTHDAY_USERNAME = 'lucas'
+const NO_TIMER_USERNAME = 'lara'
 
 const normalizeUsername = (value: string): string => value.trim().toLowerCase()
 const isDaySeven = (dateKey: string): boolean => dateKey.split('-')[2] === '07'
@@ -81,6 +82,10 @@ function App() {
   }, [session])
   const isLucasUser = useMemo(
     () => normalizeUsername(currentUsername) === BIRTHDAY_USERNAME,
+    [currentUsername],
+  )
+  const isLaraUser = useMemo(
+    () => normalizeUsername(currentUsername) === NO_TIMER_USERNAME,
     [currentUsername],
   )
   const isLucasBirthdayToday = useMemo(
@@ -314,6 +319,12 @@ function App() {
       return
     }
 
+    if (isLaraUser) {
+      setWarmupUsesLeft(WARMUP_MAX_USES)
+      window.localStorage.setItem(warmupStorageKey, String(WARMUP_MAX_USES))
+      return
+    }
+
     const savedUses = window.localStorage.getItem(warmupStorageKey)
     const parsedUses = savedUses ? Number.parseInt(savedUses, 10) : Number.NaN
     const initialUses = Number.isFinite(parsedUses)
@@ -324,7 +335,7 @@ function App() {
     if (!savedUses) {
       window.localStorage.setItem(warmupStorageKey, String(initialUses))
     }
-  }, [session, warmupStorageKey, canUseWarmupFeature])
+  }, [session, warmupStorageKey, canUseWarmupFeature, isLaraUser])
 
   useEffect(() => {
     if (stage !== 'preview' || !difficulty) {
@@ -333,6 +344,15 @@ function App() {
 
     const total = previewSecondsByDifficulty[difficulty]
     setPreviewCountdown(total)
+
+    if (isLaraUser) {
+      const timeout = window.setTimeout(() => {
+        setStage('pick')
+        setPickStartedAt(Date.now())
+      }, total * 1000)
+
+      return () => window.clearTimeout(timeout)
+    }
 
     const started = Date.now()
     const interval = window.setInterval(() => {
@@ -348,10 +368,14 @@ function App() {
     }, 50)
 
     return () => window.clearInterval(interval)
-  }, [difficulty, stage])
+  }, [difficulty, isLaraUser, stage])
 
   useEffect(() => {
     if (stage !== 'pick' || !difficulty || pickStartedAt === null) {
+      return
+    }
+
+    if (isLaraUser) {
       return
     }
 
@@ -362,7 +386,7 @@ function App() {
     tick()
     const interval = window.setInterval(tick, 100)
     return () => window.clearInterval(interval)
-  }, [difficulty, pickStartedAt, stage])
+  }, [difficulty, isLaraUser, pickStartedAt, stage])
 
   // Skip preview immediately on PrintScreen or window blur/visibility change
   useEffect(() => {
@@ -417,6 +441,21 @@ function App() {
 
   const beginPracticeChallenge = () => {
     if (!canUseWarmupFeature || hasPlayedToday || warmupUsesLeft <= 0 || !warmupStorageKey) {
+      return
+    }
+
+    if (isLaraUser) {
+      setWarmupUsesLeft(WARMUP_MAX_USES)
+      window.localStorage.setItem(warmupStorageKey, String(WARMUP_MAX_USES))
+
+      setIsPracticeMode(true)
+      setPracticeTargetHex(randomPracticeHex())
+      setChallengeDate(null)
+      setErrorText(null)
+      setResult(null)
+      setDifficulty('hard')
+      setPickerHsv(defaultHsv)
+      setStage('preview')
       return
     }
 
@@ -634,7 +673,9 @@ function App() {
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-8 text-center shadow-lg backdrop-blur">
             <p className="text-sm text-zinc-500">Memoriza este color</p>
             <div className="mx-auto mt-4 h-52 w-full max-w-md rounded-3xl border border-zinc-900/15 shadow-inner transition-opacity duration-500" style={{ backgroundColor: activeTargetHex }} />
-            <p className="mt-4 text-4xl font-black text-zinc-900">{previewCountdown.toFixed(1)}s</p>
+            {!isLaraUser && (
+              <p className="mt-4 text-4xl font-black text-zinc-900">{previewCountdown.toFixed(1)}s</p>
+            )}
             <p className="mt-2 text-sm text-zinc-600">{difficultyDescription[difficulty]}</p>
           </section>
         )}
@@ -648,13 +689,17 @@ function App() {
               </div>
               <p className="text-sm text-zinc-600">Dificultad: {difficulty.toUpperCase()}</p>
               <div className="rounded-2xl border border-zinc-900/10 bg-zinc-50 p-3">
-                <p className="text-xs uppercase tracking-wide text-zinc-500">Tiempo y bonus estimado</p>
-                <p className="mt-2 text-sm text-zinc-700">
-                  Cuenta regresiva: <span className="font-semibold">{Math.max(0, activeTimeCap - pickElapsedSeconds).toFixed(1)}s</span>
-                </p>
-                <p className="mt-1 text-sm text-zinc-700">
-                  Bonus de tiempo si confirmas ahora: <span className="font-semibold">{(Math.max(0, 1 - pickElapsedSeconds / activeTimeCap) * 100).toFixed(1)}</span> pts
-                </p>
+                {!isLaraUser && (
+                  <>
+                    <p className="text-xs uppercase tracking-wide text-zinc-500">Tiempo y bonus estimado</p>
+                    <p className="mt-2 text-sm text-zinc-700">
+                      Cuenta regresiva: <span className="font-semibold">{Math.max(0, activeTimeCap - pickElapsedSeconds).toFixed(1)}s</span>
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-700">
+                      Bonus de tiempo si confirmas ahora: <span className="font-semibold">{(Math.max(0, 1 - pickElapsedSeconds / activeTimeCap) * 100).toFixed(1)}</span> pts
+                    </p>
+                  </>
+                )}
                 {hasBirthdayBonusForActiveChallenge && (
                   <p className="mt-1 text-xs font-semibold text-amber-700">
                     Feliz cumpleanos: +{BIRTHDAY_BONUS_SECONDS}s de margen para este reto.
