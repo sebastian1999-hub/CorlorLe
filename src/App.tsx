@@ -425,13 +425,16 @@ function App() {
     }
   }, [stage])
 
-  const beginChallenge = () => {
-    if (hasPlayedToday) {
+  const beginChallenge = (targetDate?: string) => {
+    const dateToUse = targetDate ?? date
+    const hasAlreadyPlayed = dateToUse === date ? hasPlayedToday : hasPlayedOnViewDate
+    
+    if (hasAlreadyPlayed) {
       return
     }
     setIsPracticeMode(false)
     setPracticeTargetHex(null)
-    setChallengeDate(null)
+    setChallengeDate(dateToUse === date ? null : dateToUse)
     setErrorText(null)
     setResult(null)
     setDifficulty('hard')
@@ -565,11 +568,11 @@ function App() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={beginChallenge}
-              disabled={hasPlayedToday || loadingData}
+              onClick={() => beginChallenge(viewDate)}
+              disabled={hasPlayedOnViewDate || loadingData || leaderboardTab === 'general'}
               className="rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {hasPlayedToday ? 'Reto ya completado' : 'Reto Diario'}
+              {hasPlayedOnViewDate ? 'Reto ya completado' : 'Reto Diario'}
             </button>
             {canUseWarmupFeature && (
               <button

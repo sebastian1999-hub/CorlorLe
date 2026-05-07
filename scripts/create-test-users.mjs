@@ -22,6 +22,7 @@ const TEST_USERS = [
   { username: 'Paula', email: 'paula@gmail.com' },
   { username: 'Laura', email: 'laura@gmail.com' },
   { username: 'Orvala', email: 'orvala@gmail.com' },
+  { username: 'Abadesa', email: 'lauraabad@gmail.com' },
   { username: 'Admin', email: 'admin@gmail.com', role: 'admin' },
 ]
 
