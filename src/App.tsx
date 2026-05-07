@@ -23,6 +23,7 @@ type ResultState = {
 
 const defaultHsv: HSV = { h: 200, s: 70, v: 70 }
 const WARMUP_START_DATE = '2026-05-06'
+const FIRST_PLAYABLE_DATE = '2026-05-04'
 const WARMUP_MAX_USES = 3
 const BIRTHDAY_BONUS_SECONDS = 10
 const BIRTHDAY_USERNAME = 'lucas'
@@ -109,6 +110,7 @@ function App() {
   const canUseWarmupFeature = date >= WARMUP_START_DATE
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
   const activeChallengeDateKey = challengeDate ?? date
+  const isBeforeFirstPlayableViewDate = viewDate < FIRST_PLAYABLE_DATE
   const hasBirthdayBonusForActiveChallenge =
     !isPracticeMode && isLucasUser && isDaySeven(activeChallengeDateKey)
   const activeTimeCap = difficulty
@@ -448,6 +450,12 @@ function App() {
 
   const beginChallenge = (targetDate?: string) => {
     const dateToUse = targetDate ?? date
+
+    if (dateToUse < FIRST_PLAYABLE_DATE) {
+      setErrorText('No se puede jugar antes del 04/05/2026.')
+      return
+    }
+
     const hasAlreadyPlayed = dateToUse === date ? hasPlayedToday : hasPlayedOnViewDate
     
     if (hasAlreadyPlayed) {
@@ -590,10 +598,14 @@ function App() {
             <button
               type="button"
               onClick={() => beginChallenge(viewDate)}
-              disabled={hasPlayedOnViewDate || loadingData || leaderboardTab === 'general'}
+              disabled={hasPlayedOnViewDate || loadingData || leaderboardTab === 'general' || isBeforeFirstPlayableViewDate}
               className="rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {hasPlayedOnViewDate ? 'Reto ya completado' : 'Reto Diario'}
+              {isBeforeFirstPlayableViewDate
+                ? 'No disponible'
+                : hasPlayedOnViewDate
+                ? 'Reto ya completado'
+                : 'Reto Diario'}
             </button>
             {canUseWarmupFeature && (
               <button
@@ -656,6 +668,7 @@ function App() {
                 <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
                   <button
                     type="button"
+                    disabled={viewDate <= FIRST_PLAYABLE_DATE}
                     onClick={() => {
                       const d = new Date(viewDate + 'T00:00:00Z')
                       d.setUTCDate(d.getUTCDate() - 1)
