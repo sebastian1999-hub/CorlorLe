@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from '../lib/authGuard'
 import { supabase } from '../lib/supabase'
 
-export function AuthScreen() {
+type AuthScreenProps = {
+  externalError?: string | null
+}
+
+export function AuthScreen({ externalError = null }: AuthScreenProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,13 +18,36 @@ export function AuthScreen() {
     setLoading(true)
     setError(null)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (signInError) {
       setError(signInError.message)
+      setLoading(false)
+      return
+    }
+
+    try {
+      const userId = data.session?.user.id
+
+      if (!userId) {
+        await supabase.auth.signOut()
+        setError('No se pudo validar tu sesion. Intentalo otra vez.')
+        setLoading(false)
+        return
+      }
+
+      const authorizedUsername = await verifyAuthorizedUser(userId)
+
+      if (!authorizedUsername) {
+        await supabase.auth.signOut()
+        setError(UNAUTHORIZED_ACCESS_MESSAGE)
+      }
+    } catch {
+      await supabase.auth.signOut()
+      setError('No se pudo validar tu acceso. Intentalo otra vez.')
     }
 
     setLoading(false)
@@ -60,7 +88,11 @@ export function AuthScreen() {
               />
             </label>
 
-            {error && <p className="rounded-lg bg-red-500/20 p-2 text-sm text-red-200">{error}</p>}
+            {(error || externalError) && (
+              <p className="rounded-lg bg-red-500/20 p-2 text-sm text-red-200">
+                {error ?? externalError}
+              </p>
+            )}
 
             <button
               disabled={loading}

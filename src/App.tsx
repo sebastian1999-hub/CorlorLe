@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
+import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from './lib/authGuard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
 import { dailyTargetColor, todayKey } from './lib/dailyChallenge'
 import { difficultyDescription, previewSecondsByDifficulty, scoreAttempt, timeCaps } from './lib/scoring'
@@ -46,7 +47,9 @@ const fallbackUsername = (email: string | null | undefined, userId: string): str
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
+  const [profileUsername, setProfileUsername] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [hasPlayedToday, setHasPlayedToday] = useState(false)
   const [stage, setStage] = useState<Stage>('home')
@@ -74,12 +77,16 @@ function App() {
     return `${day}/${month}/${year}`
   }, [viewDate])
   const currentUsername = useMemo(() => {
+    if (profileUsername && profileUsername.trim().length > 0) {
+      return profileUsername.trim()
+    }
+
     const metadataUsername = session?.user.user_metadata?.username
     if (typeof metadataUsername === 'string' && metadataUsername.trim().length > 0) {
       return metadataUsername.trim()
     }
     return fallbackUsername(session?.user.email, session?.user.id ?? 'anon')
-  }, [session])
+  }, [profileUsername, session])
   const isLucasUser = useMemo(
     () => normalizeUsername(currentUsername) === BIRTHDAY_USERNAME,
     [currentUsername],
@@ -251,53 +258,60 @@ function App() {
     setLoadingData(false)
   }, [date, session])
 
+  const resolveAuthorizedSession = useCallback(async (nextSession: Session | null) => {
+    if (!nextSession) {
+      setProfileUsername(null)
+      return null
+    }
+
+    try {
+      const authorizedUsername = await verifyAuthorizedUser(nextSession.user.id)
+
+      if (!authorizedUsername) {
+        await supabase.auth.signOut()
+        setProfileUsername(null)
+        setAuthError(UNAUTHORIZED_ACCESS_MESSAGE)
+        return null
+      }
+
+      setProfileUsername(authorizedUsername)
+      setAuthError(null)
+      return nextSession
+    } catch {
+      await supabase.auth.signOut()
+      setProfileUsername(null)
+      setAuthError('No se pudo validar tu acceso. Intentalo otra vez.')
+      return null
+    }
+  }, [])
+
   useEffect(() => {
     const loadSession = async () => {
       const { data } = await supabase.auth.getSession()
-      setSession(data.session)
+      const authorizedSession = await resolveAuthorizedSession(data.session)
+      setSession(authorizedSession)
       setAuthLoading(false)
     }
 
-    loadSession()
+    void loadSession()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
-      setStage('home')
-      setResult(null)
-      setHasPlayedToday(false)
-      setIsPracticeMode(false)
+      void (async () => {
+        const authorizedSession = await resolveAuthorizedSession(nextSession)
+        setSession(authorizedSession)
+        setStage('home')
+        setResult(null)
+        setHasPlayedToday(false)
+        setIsPracticeMode(false)
+      })()
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
-
-  useEffect(() => {
-    const upsertProfile = async () => {
-      if (!session) {
-        return
-      }
-
-      const metadataUsername = session.user.user_metadata?.username
-      const username =
-        typeof metadataUsername === 'string' && metadataUsername.trim().length > 0
-          ? metadataUsername.trim()
-          : fallbackUsername(session.user.email, session.user.id)
-
-      await supabase.from('profiles').upsert(
-        {
-          id: session.user.id,
-          username,
-        },
-        { onConflict: 'id' },
-      )
-    }
-
-    void upsertProfile()
-  }, [session])
+  }, [resolveAuthorizedSession])
 
   useEffect(() => {
     if (!session) {
@@ -553,7 +567,7 @@ function App() {
   }
 
   if (!session) {
-    return <AuthScreen />
+    return <AuthScreen externalError={authError} />
   }
 
   return (
