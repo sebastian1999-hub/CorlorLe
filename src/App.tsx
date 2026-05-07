@@ -133,7 +133,7 @@ function App() {
           .maybeSingle(),
         supabase
           .from('attempts')
-          .select('user_id,score,user_color,target_color')
+          .select('user_id,score,user_color,target_color,error')
           .eq('date', dateKey),
       ])
 
@@ -164,6 +164,12 @@ function App() {
 
     const dailyAggregated = dailyUserIds.map((uid) => {
       const userAttempts = dailyAttempts.filter((a) => a.user_id === uid)
+      const averageError =
+        userAttempts.length > 0
+          ? userAttempts.reduce((sum, a) => sum + a.error, 0) / userAttempts.length
+          : 100
+      const accuracyPercent = Math.max(0, 100 - averageError)
+
       return {
         userId: uid,
         username: (() => {
@@ -184,6 +190,7 @@ function App() {
         gamesPlayed: userAttempts.length,
         userColor: userAttempts[0]?.user_color,
         targetColor: userAttempts[0]?.target_color,
+        accuracyPercent,
       }
     })
     dailyAggregated.sort((a, b) => b.totalScore - a.totalScore)

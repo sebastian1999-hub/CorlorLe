@@ -31,4 +31,5 @@ export type LeaderboardEntry = {
   gamesPlayed: number
   userColor?: string
   targetColor?: string
+  accuracyPercent?: number
 }

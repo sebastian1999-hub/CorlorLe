@@ -29,7 +29,10 @@ export function Leaderboard({ entries, title = 'Clasificacion general', showColo
             <span className="text-center font-bold text-amber-300">#{index + 1}</span>
             <div>
               <p className="font-semibold">{entry.username}</p>
-              <p className="text-xs text-zinc-400">{entry.gamesPlayed} partida{entry.gamesPlayed !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-zinc-400">
+                {entry.gamesPlayed} partida{entry.gamesPlayed !== 1 ? 's' : ''}
+                {typeof entry.accuracyPercent === 'number' && ` · ${entry.accuracyPercent.toFixed(1)}% de precision`}
+              </p>
             </div>
             <p className="text-right font-extrabold text-emerald-300">{entry.totalScore.toFixed(0)}</p>
             {showColors ? (
