@@ -291,16 +291,6 @@ function App() {
         return
       }
 
-      // Helper function to determine if colors should be shown
-      const shouldShowColors = (attemptDate: string): boolean => {
-        // If attempt is not from today, always show colors
-        if (attemptDate !== date) {
-          return true
-        }
-        // If attempt is from today, only show colors if user has played today
-        return hasPlayedToday
-      }
-
       // Get all user IDs
       const userIds = [...new Set(allAttemptsData.map((a) => a.user_id))]
 
@@ -323,11 +313,10 @@ function App() {
       for (const attempt of allAttemptsData) {
         const current = closestColorMap.get(attempt.user_id)
         if (!current || attempt.error < current.error) {
-          const showColors = shouldShowColors(attempt.date)
           closestColorMap.set(attempt.user_id, {
             error: attempt.error,
-            targetColor: showColors ? attempt.target_color : undefined,
-            userColor: showColors ? attempt.user_color : undefined,
+            targetColor: attempt.target_color,
+            userColor: attempt.user_color,
           })
         }
       }
@@ -349,11 +338,10 @@ function App() {
       for (const attempt of allAttemptsData) {
         const current = farthestColorMap.get(attempt.user_id)
         if (!current || attempt.error > current.error) {
-          const showColors = shouldShowColors(attempt.date)
           farthestColorMap.set(attempt.user_id, {
             error: attempt.error,
-            targetColor: showColors ? attempt.target_color : undefined,
-            userColor: showColors ? attempt.user_color : undefined,
+            targetColor: attempt.target_color,
+            userColor: attempt.user_color,
           })
         }
       }
@@ -443,7 +431,7 @@ function App() {
     } finally {
       setRecordsLoading(false)
     }
-  }, [session, date, hasPlayedToday])
+  }, [session])
 
   const resolveAuthorizedSession = useCallback(async (nextSession: Session | null) => {
     if (!nextSession) {
@@ -807,7 +795,8 @@ function App() {
             <button
               type="button"
               onClick={() => setStage('records')}
-              className="w-full rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200 md:w-auto"
+              disabled={!hasPlayedToday}
+              className="w-full rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
               Récords
             </button>
