@@ -68,8 +68,8 @@ export function Records({ closestColor, farthestColor, highestScore, mostFirstPl
 
       {!loading && (
         <>
-          {renderTable('Color Más Cercano', closestColor, (val) => `${val.toFixed(2)}%`)}
-          {renderTable('Color Más Alejado', farthestColor, (val) => `${val.toFixed(2)}%`)}
+          {renderTable('Colorimetro humano', closestColor, (val) => `${val.toFixed(2)}%`)}
+          {renderTable('Mas daltonico', farthestColor, (val) => `${val.toFixed(2)}%`)}
           {renderTable('Mayor Puntuación', highestScore, (val) => `${val.toFixed(0)} pts`)}
           {renderTable(
             'Más Primeros Lugares',
