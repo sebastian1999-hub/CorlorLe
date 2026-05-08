@@ -779,12 +779,12 @@ function App() {
             <p className="text-sm text-zinc-600">Reto de hoy: {displayDate}</p>
           </div>
 
-          <div className="flex items-center gap-3">
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
             <button
               type="button"
               onClick={() => beginChallenge(viewDate)}
               disabled={hasPlayedOnViewDate || loadingData || leaderboardTab === 'general' || isBeforeFirstPlayableViewDate}
-              className="rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
               {isBeforeFirstPlayableViewDate
                 ? 'No disponible'
@@ -797,7 +797,7 @@ function App() {
                 type="button"
                 onClick={beginPracticeChallenge}
                 disabled={loadingData || hasPlayedToday || warmupUsesLeft <= 0}
-                className="rounded-lg border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
               >
                 {hasPlayedToday
                   ? 'Calentamiento bloqueado'
@@ -807,14 +807,14 @@ function App() {
             <button
               type="button"
               onClick={() => setStage('records')}
-              className="rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200"
+              className="w-full rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200 md:w-auto"
             >
               Récords
             </button>
             <button
               type="button"
               onClick={signOut}
-              className="rounded-lg border border-zinc-300 px-4 py-3 text-sm text-zinc-700 transition hover:bg-zinc-100"
+              className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm text-zinc-700 transition hover:bg-zinc-100 md:w-auto"
             >
               Salir
             </button>
