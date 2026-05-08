@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
+import { Records } from './components/Records'
 import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from './lib/authGuard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
 import { dailyTargetColor, todayKey } from './lib/dailyChallenge'
@@ -10,7 +11,7 @@ import { difficultyDescription, previewSecondsByDifficulty, scoreAttempt, timeCa
 import { supabase } from './lib/supabase'
 import type { Difficulty, HSV, LeaderboardEntry } from './types'
 
-type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result'
+type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records'
 
 type ResultState = {
   targetHex: string
@@ -71,6 +72,11 @@ function App() {
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
   const [challengeDate, setChallengeDate] = useState<string | null>(null)
   const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
+  const [recordsClosestColor, setRecordsClosestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
+  const [recordsFarthestColor, setRecordsFarthestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
+  const [recordsHighestScore, setRecordsHighestScore] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
+  const [recordsMostFirstPlaces, setRecordsMostFirstPlaces] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
+  const [recordsLoading, setRecordsLoading] = useState(false)
 
   const date = useMemo(() => todayKey(), [])
   const displayDate = useMemo(() => {
@@ -267,6 +273,178 @@ function App() {
     setLoadingData(false)
   }, [date, session])
 
+  const refreshRecords = useCallback(async () => {
+    if (!session) {
+      return
+    }
+
+    setRecordsLoading(true)
+
+    try {
+      // Get all attempts
+      const { data: allAttemptsData, error: attemptsError } = await supabase
+        .from('attempts')
+        .select('user_id,score,error,target_color,user_color,date')
+
+      if (attemptsError || !allAttemptsData) {
+        setRecordsLoading(false)
+        return
+      }
+
+      // Helper function to determine if colors should be shown
+      const shouldShowColors = (attemptDate: string): boolean => {
+        // If attempt is not from today, always show colors
+        if (attemptDate !== date) {
+          return true
+        }
+        // If attempt is from today, only show colors if user has played today
+        return hasPlayedToday
+      }
+
+      // Get all user IDs
+      const userIds = [...new Set(allAttemptsData.map((a) => a.user_id))]
+
+      // Get usernames
+      let usernameById: Record<string, string> = {}
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id,username')
+          .in('id', userIds)
+
+        usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+          acc[profile.id] = profile.username
+          return acc
+        }, {})
+      }
+
+      // Calculate closest color (lowest error)
+      const closestColorMap = new Map<string, { error: number; targetColor?: string; userColor?: string }>()
+      for (const attempt of allAttemptsData) {
+        const current = closestColorMap.get(attempt.user_id)
+        if (!current || attempt.error < current.error) {
+          const showColors = shouldShowColors(attempt.date)
+          closestColorMap.set(attempt.user_id, {
+            error: attempt.error,
+            targetColor: showColors ? attempt.target_color : undefined,
+            userColor: showColors ? attempt.user_color : undefined,
+          })
+        }
+      }
+
+      const closestColor = Array.from(closestColorMap.entries())
+        .map(([userId, data]) => ({
+          userId,
+          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
+          value: Math.max(0, 100 - data.error),
+          valueLabel: `${data.error.toFixed(2)}% de error`,
+          targetColor: data.targetColor,
+          userColor: data.userColor,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3)
+
+      // Calculate farthest color (highest error)
+      const farthestColorMap = new Map<string, { error: number; targetColor?: string; userColor?: string }>()
+      for (const attempt of allAttemptsData) {
+        const current = farthestColorMap.get(attempt.user_id)
+        if (!current || attempt.error > current.error) {
+          const showColors = shouldShowColors(attempt.date)
+          farthestColorMap.set(attempt.user_id, {
+            error: attempt.error,
+            targetColor: showColors ? attempt.target_color : undefined,
+            userColor: showColors ? attempt.user_color : undefined,
+          })
+        }
+      }
+
+      const farthestColor = Array.from(farthestColorMap.entries())
+        .map(([userId, data]) => ({
+          userId,
+          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
+          value: Math.max(0, 100 - data.error),
+          valueLabel: `${data.error.toFixed(2)}% de error`,
+          targetColor: data.targetColor,
+          userColor: data.userColor,
+        }))
+        .sort((a, b) => a.value - b.value)
+        .slice(0, 3)
+
+      // Calculate highest score
+      const highestScoreMap = new Map<string, { score: number; targetColor?: string; userColor?: string }>()
+      for (const attempt of allAttemptsData) {
+        const current = highestScoreMap.get(attempt.user_id)
+        if (!current || attempt.score > current.score) {
+          highestScoreMap.set(attempt.user_id, {
+            score: attempt.score,
+            targetColor: attempt.target_color,
+            userColor: attempt.user_color,
+          })
+        }
+      }
+
+      const highestScore = Array.from(highestScoreMap.entries())
+        .map(([userId, data]) => ({
+          userId,
+          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
+          value: data.score,
+          valueLabel: 'Puntuación más alta',
+          targetColor: data.targetColor,
+          userColor: data.userColor,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3)
+
+      // Calculate most first places
+      const dailyWinnersMap = new Map<string, Set<string>>()
+
+      // Group attempts by date
+      const attemptsByDate = new Map<string, typeof allAttemptsData>()
+      for (const attempt of allAttemptsData) {
+        if (!attemptsByDate.has(attempt.date)) {
+          attemptsByDate.set(attempt.date, [])
+        }
+        attemptsByDate.get(attempt.date)!.push(attempt)
+      }
+
+      // For each date, find who had the highest score
+      for (const [date, dayAttempts] of attemptsByDate.entries()) {
+        if (dayAttempts.length === 0) continue
+        let winner: string | null = null
+        let maxScore = -1
+        for (const attempt of dayAttempts) {
+          if (attempt.score > maxScore) {
+            maxScore = attempt.score
+            winner = attempt.user_id
+          }
+        }
+        if (winner) {
+          if (!dailyWinnersMap.has(winner)) {
+            dailyWinnersMap.set(winner, new Set())
+          }
+          dailyWinnersMap.get(winner)!.add(date)
+        }
+      }
+
+      const mostFirstPlaces = Array.from(dailyWinnersMap.entries())
+        .map(([userId, dates]) => ({
+          userId,
+          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
+          value: dates.size,
+          valueLabel: `${dates.size} reto${dates.size !== 1 ? 's' : ''} ganado${dates.size !== 1 ? 's' : ''}`,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3)
+
+      setRecordsClosestColor(closestColor)
+      setRecordsFarthestColor(farthestColor)
+      setRecordsHighestScore(highestScore)
+      setRecordsMostFirstPlaces(mostFirstPlaces)
+    } finally {
+      setRecordsLoading(false)
+    }
+  }, [session, date, hasPlayedToday])
+
   const resolveAuthorizedSession = useCallback(async (nextSession: Session | null) => {
     if (!nextSession) {
       setProfileUsername(null)
@@ -335,6 +513,13 @@ function App() {
     }
     void refreshDailyLeaderboard(viewDate)
   }, [viewDate, refreshDailyLeaderboard, session])
+
+  useEffect(() => {
+    if (!session) {
+      return
+    }
+    void refreshRecords()
+  }, [refreshRecords, session])
 
   useEffect(() => {
     if (!session || !warmupStorageKey || !canUseWarmupFeature) {
@@ -621,6 +806,13 @@ function App() {
             )}
             <button
               type="button"
+              onClick={() => setStage('records')}
+              className="rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200"
+            >
+              Récords
+            </button>
+            <button
+              type="button"
               onClick={signOut}
               className="rounded-lg border border-zinc-300 px-4 py-3 text-sm text-zinc-700 transition hover:bg-zinc-100"
             >
@@ -802,6 +994,28 @@ function App() {
               Volver al leaderboard
             </button>
           </section>
+        )}
+
+        {stage === 'records' && (
+          <>
+            <div className="flex items-center justify-between gap-4 rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
+              <h2 className="text-2xl font-bold text-zinc-900">Récords Globales</h2>
+              <button
+                type="button"
+                onClick={() => setStage('home')}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+              >
+                Volver
+              </button>
+            </div>
+            <Records
+              closestColor={recordsClosestColor}
+              farthestColor={recordsFarthestColor}
+              highestScore={recordsHighestScore}
+              mostFirstPlaces={recordsMostFirstPlaces}
+              loading={recordsLoading}
+            />
+          </>
         )}
 
         {loadingData && stage === 'home' && (
