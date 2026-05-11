@@ -26,12 +26,9 @@ const defaultHsv: HSV = { h: 200, s: 70, v: 70 }
 const WARMUP_START_DATE = '2026-05-06'
 const FIRST_PLAYABLE_DATE = '2026-05-04'
 const WARMUP_MAX_USES = 3
-const BIRTHDAY_BONUS_SECONDS = 10
-const BIRTHDAY_USERNAME = 'lucas'
 const NO_TIMER_USERNAME = 'lara'
 
 const normalizeUsername = (value: string): string => value.trim().toLowerCase()
-const isDaySeven = (dateKey: string): boolean => dateKey.split('-')[2] === '07'
 
 const randomPracticeHex = (): string => {
   const h = Math.floor(Math.random() * 360)
@@ -75,6 +72,7 @@ function App() {
   const [recordsClosestColor, setRecordsClosestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsFarthestColor, setRecordsFarthestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsHighestScore, setRecordsHighestScore] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
+  const [recordsLowestScore, setRecordsLowestScore] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsMostFirstPlaces, setRecordsMostFirstPlaces] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsLoading, setRecordsLoading] = useState(false)
 
@@ -94,17 +92,9 @@ function App() {
     }
     return fallbackUsername(session?.user.email, session?.user.id ?? 'anon')
   }, [profileUsername, session])
-  const isLucasUser = useMemo(
-    () => normalizeUsername(currentUsername) === BIRTHDAY_USERNAME,
-    [currentUsername],
-  )
   const isLaraUser = useMemo(
     () => normalizeUsername(currentUsername) === NO_TIMER_USERNAME,
     [currentUsername],
-  )
-  const isLucasBirthdayToday = useMemo(
-    () => isLucasUser && isDaySeven(date),
-    [isLucasUser, date],
   )
   const targetHex = useMemo(() => dailyTargetColor(date), [date])
   const challengeTargetHex = useMemo(
@@ -115,12 +105,10 @@ function App() {
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
   const canUseWarmupFeature = date >= WARMUP_START_DATE
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
-  const activeChallengeDateKey = challengeDate ?? date
   const isBeforeFirstPlayableViewDate = viewDate < FIRST_PLAYABLE_DATE
-  const hasBirthdayBonusForActiveChallenge =
-    !isPracticeMode && isLucasUser && isDaySeven(activeChallengeDateKey)
+  const isTimedScoreChallenge = isPracticeMode
   const activeTimeCap = difficulty
-    ? timeCaps[difficulty] + (hasBirthdayBonusForActiveChallenge ? BIRTHDAY_BONUS_SECONDS : 0)
+    ? (isTimedScoreChallenge ? timeCaps[difficulty] : 0)
     : 0
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
@@ -187,10 +175,6 @@ function App() {
               uid === session.user.id ? session.user.email : undefined,
               uid,
             )
-
-          if (isDaySeven(dateKey) && normalizeUsername(baseUsername) === BIRTHDAY_USERNAME) {
-            return `${baseUsername} 👑`
-          }
 
           return baseUsername
         })(),
@@ -331,7 +315,6 @@ function App() {
           userColor: data.userColor,
         }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 3)
 
       // Calculate farthest color (highest error)
       const farthestColorMap = new Map<string, { error: number; targetColor?: string; userColor?: string }>()
@@ -356,7 +339,6 @@ function App() {
           userColor: data.userColor,
         }))
         .sort((a, b) => a.value - b.value)
-        .slice(0, 3)
 
       // Calculate highest score
       const highestScoreMap = new Map<string, { score: number; targetColor?: string; userColor?: string }>()
@@ -381,7 +363,18 @@ function App() {
           userColor: data.userColor,
         }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 3)
+
+      // Calculate lowest score
+      const lowestScore = Array.from(highestScoreMap.entries())
+        .map(([userId, data]) => ({
+          userId,
+          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
+          value: data.score,
+          valueLabel: 'Puntuación más baja',
+          targetColor: data.targetColor,
+          userColor: data.userColor,
+        }))
+        .sort((a, b) => a.value - b.value)
 
       // Calculate most first places
       const dailyWinnersMap = new Map<string, Set<string>>()
@@ -422,11 +415,11 @@ function App() {
           valueLabel: `${dates.size} reto${dates.size !== 1 ? 's' : ''} ganado${dates.size !== 1 ? 's' : ''}`,
         }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 3)
 
       setRecordsClosestColor(closestColor)
       setRecordsFarthestColor(farthestColor)
       setRecordsHighestScore(highestScore)
+      setRecordsLowestScore(lowestScore)
       setRecordsMostFirstPlaces(mostFirstPlaces)
     } finally {
       setRecordsLoading(false)
@@ -571,7 +564,7 @@ function App() {
       return
     }
 
-    if (isLaraUser) {
+    if (isLaraUser || !isTimedScoreChallenge) {
       return
     }
 
@@ -582,7 +575,7 @@ function App() {
     tick()
     const interval = window.setInterval(tick, 100)
     return () => window.clearInterval(interval)
-  }, [difficulty, isLaraUser, pickStartedAt, stage])
+  }, [difficulty, isLaraUser, isTimedScoreChallenge, pickStartedAt, stage])
 
   // Skip preview immediately on PrintScreen or window blur/visibility change
   useEffect(() => {
@@ -622,6 +615,11 @@ function App() {
   }, [stage])
 
   const beginChallenge = (targetDate?: string) => {
+    if (!session || !profileUsername) {
+      setErrorText('Debes estar registrado para jugar. Por favor cierra sesion y vuelve a intentarlo.')
+      return
+    }
+
     const dateToUse = targetDate ?? date
 
     if (dateToUse < FIRST_PLAYABLE_DATE) {
@@ -645,6 +643,11 @@ function App() {
   }
 
   const beginPracticeChallenge = () => {
+    if (!session || !profileUsername) {
+      setErrorText('Debes estar registrado para jugar. Por favor cierra sesion y vuelve a intentarlo.')
+      return
+    }
+
     if (!canUseWarmupFeature || hasPlayedToday || warmupUsesLeft <= 0 || !warmupStorageKey) {
       return
     }
@@ -679,7 +682,8 @@ function App() {
   }
 
   const handleConfirm = async () => {
-    if (!session || !difficulty || pickStartedAt === null || submitting) {
+    if (!session || !profileUsername || !difficulty || pickStartedAt === null || submitting) {
+      setErrorText('Tu sesion expiro. Por favor cierra sesion y vuelve a intentarlo.')
       return
     }
 
@@ -687,11 +691,14 @@ function App() {
     setErrorText(null)
 
     const elapsedSeconds = (Date.now() - pickStartedAt) / 1000
-    const effectiveSeconds = hasBirthdayBonusForActiveChallenge
-      ? Math.max(0, elapsedSeconds - BIRTHDAY_BONUS_SECONDS)
-      : elapsedSeconds
     const error = colorErrorPercent(activeTargetHex, selectedHex)
-    const score = scoreAttempt(error, effectiveSeconds, difficulty, activeTimeCap)
+    const score = scoreAttempt(
+      error,
+      elapsedSeconds,
+      difficulty,
+      isTimedScoreChallenge ? activeTimeCap : undefined,
+      isTimedScoreChallenge,
+    )
 
     if (isPracticeMode) {
       setResult({
@@ -699,7 +706,7 @@ function App() {
         userHex: selectedHex,
         error,
         score,
-        seconds: effectiveSeconds,
+        seconds: elapsedSeconds,
         difficulty,
       })
       setStage('result')
@@ -707,14 +714,32 @@ function App() {
       return
     }
 
+    const playedDateKey = challengeDate ?? date
+
+    // Final authorization check before saving
+    try {
+      const authorizedUsername = await verifyAuthorizedUser(session.user.id)
+      if (!authorizedUsername) {
+        setErrorText('Tu cuenta ha sido desautorizada. Por favor cierra sesion e intenta de nuevo.')
+        await supabase.auth.signOut()
+        setProfileUsername(null)
+        setSubmitting(false)
+        return
+      }
+    } catch {
+      setErrorText('No se pudo validar tu acceso. Intentalo otra vez.')
+      setSubmitting(false)
+      return
+    }
+
     const { error: insertError } = await supabase.from('attempts').insert({
       user_id: session.user.id,
-      date: challengeDate ?? date,
+      date: playedDateKey,
       difficulty,
-      target_color: dailyTargetColor(challengeDate ?? date),
+      target_color: dailyTargetColor(playedDateKey),
       user_color: selectedHex,
       error,
-      time: effectiveSeconds,
+      time: elapsedSeconds,
       score,
     })
 
@@ -728,7 +753,10 @@ function App() {
       }
 
       setSubmitting(false)
-      await refreshDailyState()
+      await Promise.all([
+        refreshDailyState(),
+        refreshDailyLeaderboard(playedDateKey),
+      ])
       return
     }
 
@@ -737,13 +765,16 @@ function App() {
       userHex: selectedHex,
       error,
       score,
-      seconds: effectiveSeconds,
+      seconds: elapsedSeconds,
       difficulty,
     })
     setHasPlayedToday(true)
     setStage('result')
     setSubmitting(false)
-    await refreshDailyState()
+    await Promise.all([
+      refreshDailyState(),
+      refreshDailyLeaderboard(playedDateKey),
+    ])
   }
 
   const signOut = async () => {
@@ -809,12 +840,6 @@ function App() {
             </button>
           </div>
         </header>
-
-        {isLucasBirthdayToday && (
-          <p className="rounded-xl border border-amber-300 bg-amber-100 p-3 text-sm font-semibold text-amber-900">
-            Feliz cumpleanos, Lucas. Hoy tienes +{BIRTHDAY_BONUS_SECONDS}s en el reto diario.
-          </p>
-        )}
 
         {errorText && <p className="rounded-xl bg-red-100 p-3 text-sm text-red-700">{errorText}</p>}
 
@@ -907,7 +932,7 @@ function App() {
               </div>
               <p className="text-sm text-zinc-600">Dificultad: {difficulty.toUpperCase()}</p>
               <div className="rounded-2xl border border-zinc-900/10 bg-zinc-50 p-3">
-                {!isLaraUser && (
+                {!isLaraUser && isTimedScoreChallenge && (
                   <>
                     <p className="text-xs uppercase tracking-wide text-zinc-500">Tiempo y bonus estimado</p>
                     <p className="mt-2 text-sm text-zinc-700">
@@ -917,11 +942,6 @@ function App() {
                       Bonus de tiempo si confirmas ahora: <span className="font-semibold">{(Math.max(0, 1 - pickElapsedSeconds / activeTimeCap) * 100).toFixed(1)}</span> pts
                     </p>
                   </>
-                )}
-                {hasBirthdayBonusForActiveChallenge && (
-                  <p className="mt-1 text-xs font-semibold text-amber-700">
-                    Feliz cumpleanos: +{BIRTHDAY_BONUS_SECONDS}s de margen para este reto.
-                  </p>
                 )}
               </div>
             </div>
@@ -1001,6 +1021,7 @@ function App() {
               closestColor={recordsClosestColor}
               farthestColor={recordsFarthestColor}
               highestScore={recordsHighestScore}
+              lowestScore={recordsLowestScore}
               mostFirstPlaces={recordsMostFirstPlaces}
               loading={recordsLoading}
             />
