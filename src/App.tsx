@@ -4,14 +4,25 @@ import { AuthScreen } from './components/AuthScreen'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
 import { Records } from './components/Records'
+import { TournamentTab } from './components/TournamentTab'
 import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from './lib/authGuard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
 import { dailyTargetColor, todayKey } from './lib/dailyChallenge'
 import { difficultyDescription, previewSecondsByDifficulty, scoreAttempt, timeCaps } from './lib/scoring'
 import { supabase } from './lib/supabase'
-import type { Difficulty, HSV, LeaderboardEntry } from './types'
+import {
+  buildRoundPairings,
+  DAILY_LAST_DATE,
+  DUELS_PER_MATCH,
+  getUserMatchAttempts,
+  sumMatchError,
+  sumMatchScore,
+  TOURNAMENT_START_DATE,
+  tournamentTargetColor,
+} from './lib/tournament'
+import type { Difficulty, HSV, LeaderboardEntry, TournamentAttempt, TournamentParticipant, TournamentRun } from './types'
 
-type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records'
+type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
 
 type ResultState = {
   targetHex: string
@@ -28,6 +39,24 @@ const FIRST_PLAYABLE_DATE = '2026-05-04'
 const WARMUP_MAX_USES = 3
 const NO_TIMER_USERNAME = 'lara'
 
+type TournamentMatchView = {
+  id: string
+  roundNumber: number
+  matchNumber: number
+  winnerUserId: string | null
+  player1Id: string
+  player2Id: string | null
+  player1AttemptsDone: number
+  player2AttemptsDone: number
+  player1Score: number
+  player2Score: number
+}
+
+type TournamentRoundView = {
+  roundNumber: number
+  matches: TournamentMatchView[]
+}
+
 const normalizeUsername = (value: string): string => value.trim().toLowerCase()
 
 const randomPracticeHex = (): string => {
@@ -42,6 +71,92 @@ const fallbackUsername = (email: string | null | undefined, userId: string): str
     return `player-${userId.slice(0, 6)}`
   }
   return email.split('@')[0]
+}
+
+const createDemoTournamentParticipants = (): TournamentParticipant[] => {
+  const names = ['Irene', 'Natalia', 'Alejandro', 'Pablo', 'Raul', 'Lucas', 'Sebas', 'Alvaro']
+  return names.map((username, index) => ({
+    userId: `demo-${String(index + 1).padStart(2, '0')}`,
+    username,
+    seed: index + 1,
+  }))
+}
+
+const createDemoTournamentAttempts = (
+  runId: string,
+  startDate: string,
+  participants: TournamentParticipant[],
+): TournamentAttempt[] => {
+  const bySeed = participants.reduce<Record<number, TournamentParticipant>>((acc, participant) => {
+    acc[participant.seed] = participant
+    return acc
+  }, {})
+
+  const attempts: TournamentAttempt[] = []
+
+  const addSeries = (
+    roundNumber: number,
+    matchNumber: number,
+    seedA: number,
+    seedB: number,
+    scoresA: [number, number, number],
+    scoresB: [number, number, number],
+    errorsA: [number, number, number],
+    errorsB: [number, number, number],
+  ) => {
+    const playerA = bySeed[seedA]
+    const playerB = bySeed[seedB]
+    if (!playerA || !playerB) {
+      return
+    }
+
+    for (let duelIndex = 1; duelIndex <= DUELS_PER_MATCH; duelIndex += 1) {
+      const targetColor = tournamentTargetColor(startDate, roundNumber, duelIndex)
+
+      attempts.push({
+        id: `${runId}-r${roundNumber}-m${matchNumber}-a-${duelIndex}`,
+        runId,
+        userId: playerA.userId,
+        roundNumber,
+        matchNumber,
+        duelIndex,
+        targetColor,
+        userColor: dailyTargetColor(`${playerA.userId}:${roundNumber}:${matchNumber}:${duelIndex}`),
+        error: errorsA[duelIndex - 1],
+        time: 10 + duelIndex,
+        score: scoresA[duelIndex - 1],
+      })
+
+      attempts.push({
+        id: `${runId}-r${roundNumber}-m${matchNumber}-b-${duelIndex}`,
+        runId,
+        userId: playerB.userId,
+        roundNumber,
+        matchNumber,
+        duelIndex,
+        targetColor,
+        userColor: dailyTargetColor(`${playerB.userId}:${roundNumber}:${matchNumber}:${duelIndex}`),
+        error: errorsB[duelIndex - 1],
+        time: 10 + duelIndex,
+        score: scoresB[duelIndex - 1],
+      })
+    }
+  }
+
+  // Round 1
+  addSeries(1, 1, 1, 8, [880, 910, 860], [700, 740, 710], [8.2, 7.5, 8.0], [13.0, 12.2, 12.8])
+  addSeries(1, 2, 2, 7, [810, 790, 830], [760, 740, 750], [9.1, 9.8, 8.9], [11.6, 12.0, 11.7])
+  addSeries(1, 3, 3, 6, [790, 800, 810], [770, 760, 775], [10.2, 9.9, 9.7], [11.0, 11.4, 11.2])
+  addSeries(1, 4, 4, 5, [760, 780, 770], [820, 830, 825], [11.5, 10.9, 11.2], [9.0, 8.8, 8.9])
+
+  // Round 2 (1 vs 5, 2 vs 3)
+  addSeries(2, 1, 1, 5, [900, 890, 905], [810, 820, 800], [7.2, 7.8, 7.1], [10.2, 10.0, 10.5])
+  addSeries(2, 2, 2, 3, [830, 815, 820], [800, 790, 805], [8.8, 9.2, 8.9], [9.7, 10.1, 9.8])
+
+  // Final (1 vs 2)
+  addSeries(3, 1, 1, 2, [930, 920, 915], [880, 870, 885], [6.8, 7.0, 7.2], [8.4, 8.7, 8.3])
+
+  return attempts
 }
 
 function App() {
@@ -62,12 +177,24 @@ function App() {
   const [result, setResult] = useState<ResultState | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general'>('daily')
-  const [viewDate, setViewDate] = useState<string>(() => todayKey())
+  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general' | 'tournament'>('daily')
+  const [viewDate, setViewDate] = useState<string>(() => {
+    const currentDate = todayKey()
+    return currentDate > DAILY_LAST_DATE ? DAILY_LAST_DATE : currentDate
+  })
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
   const [challengeDate, setChallengeDate] = useState<string | null>(null)
+  const [activeTournamentMatchId, setActiveTournamentMatchId] = useState<string | null>(null)
+  const [activeTournamentRoundNumber, setActiveTournamentRoundNumber] = useState<number | null>(null)
+  const [activeTournamentMatchNumber, setActiveTournamentMatchNumber] = useState<number | null>(null)
+  const [activeTournamentDuelIndex, setActiveTournamentDuelIndex] = useState<number | null>(null)
+  const [activeTournamentTargetHex, setActiveTournamentTargetHex] = useState<string | null>(null)
+  const [tournamentLoading, setTournamentLoading] = useState(false)
+  const [tournamentRun, setTournamentRun] = useState<TournamentRun | null>(null)
+  const [tournamentParticipants, setTournamentParticipants] = useState<TournamentParticipant[]>([])
+  const [tournamentAttempts, setTournamentAttempts] = useState<TournamentAttempt[]>([])
   const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
   const [recordsClosestColor, setRecordsClosestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsFarthestColor, setRecordsFarthestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
@@ -77,6 +204,29 @@ function App() {
   const [recordsLoading, setRecordsLoading] = useState(false)
 
   const date = useMemo(() => todayKey(), [])
+  const urlSearchParams = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return new URLSearchParams()
+    }
+    return new URLSearchParams(window.location.search)
+  }, [])
+  const forceTournamentNow = useMemo(() => {
+    return urlSearchParams.get('tournament') === '1'
+  }, [urlSearchParams])
+  const demoTournamentMode = useMemo(() => {
+    return urlSearchParams.get('demoTournament') === '1'
+  }, [urlSearchParams])
+  const shouldForceTournament = forceTournamentNow || demoTournamentMode
+  const isTournamentDate = shouldForceTournament || date >= TOURNAMENT_START_DATE
+  const isDailyClosed = shouldForceTournament || date > DAILY_LAST_DATE
+
+  useEffect(() => {
+    if (!demoTournamentMode) {
+      return
+    }
+    setLeaderboardTab('tournament')
+  }, [])
+
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
     return `${day}/${month}/${year}`
@@ -101,15 +251,501 @@ function App() {
     () => isPracticeMode ? (practiceTargetHex ?? targetHex) : dailyTargetColor(challengeDate ?? date),
     [isPracticeMode, practiceTargetHex, targetHex, challengeDate, date],
   )
-  const activeTargetHex = challengeTargetHex
+  const activeTargetHex = activeTournamentTargetHex ?? challengeTargetHex
   const selectedHex = useMemo(() => hsvToHex(pickerHsv), [pickerHsv])
   const canUseWarmupFeature = date >= WARMUP_START_DATE
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
   const isBeforeFirstPlayableViewDate = viewDate < FIRST_PLAYABLE_DATE
   const isTimedScoreChallenge = isPracticeMode
+  const isPreviewStage = stage === 'preview' || stage === 'tournamentPreview'
+  const isPickStage = stage === 'pick' || stage === 'tournamentPick'
   const activeTimeCap = difficulty
     ? (isTimedScoreChallenge ? timeCaps[difficulty] : 0)
     : 0
+
+  const tournamentParticipantByUserId = useMemo(() => {
+    return tournamentParticipants.reduce<Record<string, TournamentParticipant>>((acc, participant) => {
+      acc[participant.userId] = participant
+      return acc
+    }, {})
+  }, [tournamentParticipants])
+
+  const tournamentRounds = useMemo<TournamentRoundView[]>(() => {
+    if (!tournamentRun || tournamentParticipants.length < 2) {
+      return []
+    }
+
+    let currentRoundParticipants = [...tournamentParticipants].sort((a, b) => a.seed - b.seed)
+    const rounds: TournamentRoundView[] = []
+    let roundNumber = 1
+    let safetyCounter = 0
+
+    while (currentRoundParticipants.length > 1 && safetyCounter < 20) {
+      safetyCounter += 1
+      const pairings = buildRoundPairings(currentRoundParticipants)
+      const roundMatches: TournamentMatchView[] = []
+      const winners: TournamentParticipant[] = []
+
+      for (const pairing of pairings) {
+        const player1Attempts = getUserMatchAttempts(
+          tournamentAttempts,
+          roundNumber,
+          pairing.matchNumber,
+          pairing.player1Id,
+        )
+        const player2Attempts = pairing.player2Id
+          ? getUserMatchAttempts(
+              tournamentAttempts,
+              roundNumber,
+              pairing.matchNumber,
+              pairing.player2Id,
+            )
+          : []
+
+        let winnerUserId: string | null = pairing.autoWinnerId
+        if (!winnerUserId && pairing.player2Id) {
+          const isReady = player1Attempts.length >= DUELS_PER_MATCH && player2Attempts.length >= DUELS_PER_MATCH
+          if (isReady) {
+            let player1DuelWins = 0
+            let player2DuelWins = 0
+
+            for (let duelIndex = 1; duelIndex <= DUELS_PER_MATCH; duelIndex += 1) {
+              const player1Duel = player1Attempts.find((attempt) => attempt.duelIndex === duelIndex)
+              const player2Duel = player2Attempts.find((attempt) => attempt.duelIndex === duelIndex)
+
+              if (!player1Duel || !player2Duel) {
+                continue
+              }
+
+              if (player1Duel.score > player2Duel.score) {
+                player1DuelWins += 1
+              } else if (player2Duel.score > player1Duel.score) {
+                player2DuelWins += 1
+              }
+            }
+
+            if (player1DuelWins > player2DuelWins) {
+              winnerUserId = pairing.player1Id
+            } else if (player2DuelWins > player1DuelWins) {
+              winnerUserId = pairing.player2Id
+            } else {
+              const player1TotalScore = sumMatchScore(player1Attempts)
+              const player2TotalScore = sumMatchScore(player2Attempts)
+
+              if (player1TotalScore > player2TotalScore) {
+                winnerUserId = pairing.player1Id
+              } else if (player2TotalScore > player1TotalScore) {
+                winnerUserId = pairing.player2Id
+              } else {
+                const player1Error = sumMatchError(player1Attempts)
+                const player2Error = sumMatchError(player2Attempts)
+
+                if (player1Error < player2Error) {
+                  winnerUserId = pairing.player1Id
+                } else if (player2Error < player1Error) {
+                  winnerUserId = pairing.player2Id
+                } else {
+                  const player1Seed = tournamentParticipantByUserId[pairing.player1Id]?.seed ?? Number.MAX_SAFE_INTEGER
+                  const player2Seed = tournamentParticipantByUserId[pairing.player2Id]?.seed ?? Number.MAX_SAFE_INTEGER
+                  winnerUserId = player1Seed <= player2Seed ? pairing.player1Id : pairing.player2Id
+                }
+              }
+            }
+          }
+        }
+
+        const player1 = tournamentParticipantByUserId[pairing.player1Id]
+        const player2 = pairing.player2Id ? tournamentParticipantByUserId[pairing.player2Id] : null
+
+        if (winnerUserId) {
+          const winnerParticipant = tournamentParticipantByUserId[winnerUserId]
+          if (winnerParticipant) {
+            winners.push(winnerParticipant)
+          }
+        }
+
+        roundMatches.push({
+          id: `R${roundNumber}-M${pairing.matchNumber}`,
+          roundNumber,
+          matchNumber: pairing.matchNumber,
+          winnerUserId,
+          player1Id: pairing.player1Id,
+          player2Id: pairing.player2Id,
+          player1AttemptsDone: player1Attempts.length,
+          player2AttemptsDone: player2Attempts.length,
+          player1Score: sumMatchScore(player1Attempts),
+          player2Score: sumMatchScore(player2Attempts),
+        })
+
+        if (!player1 || (pairing.player2Id && !player2)) {
+          break
+        }
+      }
+
+      rounds.push({
+        roundNumber,
+        matches: roundMatches,
+      })
+
+      const isRoundComplete = roundMatches.length > 0 && roundMatches.every((match) => Boolean(match.winnerUserId))
+      if (!isRoundComplete) {
+        break
+      }
+
+      currentRoundParticipants = winners.sort((a, b) => a.seed - b.seed)
+      roundNumber += 1
+    }
+
+    return rounds
+  }, [tournamentAttempts, tournamentParticipantByUserId, tournamentParticipants, tournamentRun])
+
+  const championUserId = useMemo(() => {
+    if (tournamentRounds.length === 0) {
+      return null
+    }
+
+    const lastRound = tournamentRounds[tournamentRounds.length - 1]
+    if (!lastRound.matches.every((match) => Boolean(match.winnerUserId))) {
+      return null
+    }
+
+    if (lastRound.matches.length !== 1) {
+      return null
+    }
+
+    return lastRound.matches[0].winnerUserId
+  }, [tournamentRounds])
+
+  const championName = championUserId
+    ? (tournamentParticipantByUserId[championUserId]?.username ?? null)
+    : null
+
+  const tournamentRoundsForUi = useMemo(() => {
+    const currentUserId = session?.user.id
+    const roundColorLockByRound = tournamentRounds.reduce<Record<number, boolean>>((acc, round) => {
+      if (!currentUserId) {
+        acc[round.roundNumber] = false
+        return acc
+      }
+
+      const currentUserMatch = round.matches.find(
+        (match) => match.player1Id === currentUserId || match.player2Id === currentUserId,
+      )
+
+      if (!currentUserMatch || !currentUserMatch.player2Id) {
+        acc[round.roundNumber] = false
+        return acc
+      }
+
+      const currentUserAttemptsDone =
+        currentUserMatch.player1Id === currentUserId
+          ? currentUserMatch.player1AttemptsDone
+          : currentUserMatch.player2AttemptsDone
+
+      acc[round.roundNumber] = currentUserAttemptsDone < DUELS_PER_MATCH
+      return acc
+    }, {})
+
+    return tournamentRounds.map((round) => ({
+      roundNumber: round.roundNumber,
+      matches: round.matches.map((match) => {
+        const hideOtherColorsInRound = roundColorLockByRound[round.roundNumber] ?? false
+        const player1DuelAttempts = getUserMatchAttempts(
+          tournamentAttempts,
+          match.roundNumber,
+          match.matchNumber,
+          match.player1Id,
+        )
+        const player2DuelAttempts = match.player2Id
+          ? getUserMatchAttempts(
+              tournamentAttempts,
+              match.roundNumber,
+              match.matchNumber,
+              match.player2Id,
+            )
+          : []
+
+        const toDuelRows = (attempts: TournamentAttempt[], rivalAttempts: TournamentAttempt[]) => {
+          return Array.from({ length: DUELS_PER_MATCH }, (_, index) => {
+            const duelIndex = index + 1
+            const attempt = attempts.find((item) => item.duelIndex === duelIndex)
+            const rivalAttempt = rivalAttempts.find((item) => item.duelIndex === duelIndex)
+            const sharedTargetColor = tournamentRun
+              ? tournamentTargetColor(
+                  tournamentRun.startDate,
+                  match.roundNumber,
+                  duelIndex,
+                )
+              : null
+            let result: 'win' | 'loss' | 'tie' | 'pending' = 'pending'
+
+            if (attempt && rivalAttempt) {
+              if (attempt.score > rivalAttempt.score) {
+                result = 'win'
+              } else if (attempt.score < rivalAttempt.score) {
+                result = 'loss'
+              } else {
+                result = 'tie'
+              }
+            }
+
+            return {
+              duelIndex,
+              done: Boolean(attempt),
+              targetColor: sharedTargetColor,
+              userColor: attempt?.userColor ?? null,
+              score: attempt?.score ?? null,
+              error: attempt?.error ?? null,
+              result,
+            }
+          })
+        }
+
+        const countDuelWins = (ownAttempts: TournamentAttempt[], rivalAttempts: TournamentAttempt[]): number => {
+          let wins = 0
+          for (let duelIndex = 1; duelIndex <= DUELS_PER_MATCH; duelIndex += 1) {
+            const own = ownAttempts.find((attempt) => attempt.duelIndex === duelIndex)
+            const rival = rivalAttempts.find((attempt) => attempt.duelIndex === duelIndex)
+            if (!own || !rival) {
+              continue
+            }
+            if (own.score > rival.score) {
+              wins += 1
+            }
+          }
+          return wins
+        }
+
+        const player1DuelWins = countDuelWins(player1DuelAttempts, player2DuelAttempts)
+        const player2DuelWins = countDuelWins(player2DuelAttempts, player1DuelAttempts)
+
+        const player1 = tournamentParticipantByUserId[match.player1Id]
+        const player2 = match.player2Id ? tournamentParticipantByUserId[match.player2Id] : null
+        const isCurrentUserInMatch = currentUserId
+          ? match.player1Id === currentUserId || match.player2Id === currentUserId
+          : false
+
+        const currentUserAttemptsDone = currentUserId
+          ? (match.player1Id === currentUserId ? match.player1AttemptsDone : match.player2AttemptsDone)
+          : 0
+
+        return {
+          id: match.id,
+          roundNumber: match.roundNumber,
+          matchNumber: match.matchNumber,
+          winnerUserId: match.winnerUserId,
+          player1DuelWins,
+          player2DuelWins,
+          player1: {
+            userId: match.player1Id,
+            username: player1?.username ?? fallbackUsername(undefined, match.player1Id),
+            attemptsDone: match.player1AttemptsDone,
+            totalScore: match.player1Score,
+            revealColors: !hideOtherColorsInRound || match.player1Id === currentUserId,
+            duels: toDuelRows(player1DuelAttempts, player2DuelAttempts),
+          },
+          player2: player2
+            ? {
+                userId: player2.userId,
+                username: player2.username,
+                attemptsDone: match.player2AttemptsDone,
+                totalScore: match.player2Score,
+                revealColors: !hideOtherColorsInRound || player2.userId === currentUserId,
+                duels: toDuelRows(player2DuelAttempts, player1DuelAttempts),
+              }
+            : null,
+          isCurrentUserInMatch,
+          canCurrentUserPlay:
+            isCurrentUserInMatch &&
+            !match.winnerUserId &&
+            Boolean(player2) &&
+            currentUserAttemptsDone < DUELS_PER_MATCH,
+        }
+      }),
+    }))
+  }, [session, tournamentAttempts, tournamentParticipantByUserId, tournamentRounds, tournamentRun])
+
+  const refreshTournamentData = useCallback(async () => {
+    if (!session || !isTournamentDate) {
+      setTournamentRun(null)
+      setTournamentParticipants([])
+      setTournamentAttempts([])
+      return
+    }
+
+    setTournamentLoading(true)
+
+    if (demoTournamentMode) {
+      const demoRunId = 'demo-run-2026-05-13'
+      const demoParticipants = createDemoTournamentParticipants()
+      const demoAttempts = createDemoTournamentAttempts(demoRunId, TOURNAMENT_START_DATE, demoParticipants)
+
+      setTournamentRun({
+        id: demoRunId,
+        startDate: TOURNAMENT_START_DATE,
+        status: 'finished',
+        championUserId: demoParticipants[0]?.userId ?? null,
+      })
+      setTournamentParticipants(demoParticipants)
+      setTournamentAttempts(demoAttempts)
+      setTournamentLoading(false)
+      return
+    }
+
+    const fetchStandingsForSeeding = async (): Promise<LeaderboardEntry[]> => {
+      const { data: attemptsData, error: attemptsError } = await supabase
+        .from('attempts')
+        .select('user_id,score')
+        .lte('date', DAILY_LAST_DATE)
+
+      if (attemptsError || !attemptsData) {
+        return []
+      }
+
+      const uniqueUserIds = [...new Set(attemptsData.map((attempt) => attempt.user_id))]
+      let usernameById: Record<string, string> = {}
+
+      if (uniqueUserIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id,username')
+          .in('id', uniqueUserIds)
+
+        usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+          acc[profile.id] = profile.username
+          return acc
+        }, {})
+      }
+
+      const aggregated = uniqueUserIds.map((uid) => {
+        const userAttempts = attemptsData.filter((attempt) => attempt.user_id === uid)
+        return {
+          userId: uid,
+          username:
+            usernameById[uid] ??
+            fallbackUsername(
+              uid === session.user.id ? session.user.email : undefined,
+              uid,
+            ),
+          totalScore: userAttempts.reduce((sum, attempt) => sum + attempt.score, 0),
+          gamesPlayed: userAttempts.length,
+        }
+      })
+
+      aggregated.sort((a, b) => b.totalScore - a.totalScore)
+      return aggregated
+    }
+
+    const { data: existingRun } = await supabase
+      .from('tournament_runs')
+      .select('id,start_date,status,champion_user_id')
+      .eq('start_date', TOURNAMENT_START_DATE)
+      .maybeSingle()
+
+    let runId = existingRun?.id ?? null
+
+    if (!runId) {
+      const standings = await fetchStandingsForSeeding()
+      if (standings.length >= 2) {
+        const { data: createdRun, error: runInsertError } = await supabase
+          .from('tournament_runs')
+          .insert({
+            start_date: TOURNAMENT_START_DATE,
+            status: 'active',
+          })
+          .select('id,start_date,status,champion_user_id')
+          .single()
+
+        if (!runInsertError && createdRun) {
+          runId = createdRun.id
+          const participantsToInsert = standings.map((entry, index) => ({
+            run_id: createdRun.id,
+            user_id: entry.userId,
+            seed: index + 1,
+          }))
+
+          await supabase.from('tournament_participants').insert(participantsToInsert)
+        }
+      }
+    }
+
+    if (!runId) {
+      setTournamentRun(null)
+      setTournamentParticipants([])
+      setTournamentAttempts([])
+      setTournamentLoading(false)
+      return
+    }
+
+    const [{ data: runData }, { data: participantsData }, { data: attemptsData }] = await Promise.all([
+      supabase
+        .from('tournament_runs')
+        .select('id,start_date,status,champion_user_id')
+        .eq('id', runId)
+        .single(),
+      supabase
+        .from('tournament_participants')
+        .select('user_id,seed')
+        .eq('run_id', runId)
+        .order('seed', { ascending: true }),
+      supabase
+        .from('tournament_attempts')
+        .select('id,run_id,user_id,round_number,match_number,duel_index,target_color,user_color,error,time,score')
+        .eq('run_id', runId),
+    ])
+
+    const participantUserIds = [...new Set((participantsData ?? []).map((participant) => participant.user_id))]
+    let usernameById: Record<string, string> = {}
+
+    if (participantUserIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id,username')
+        .in('id', participantUserIds)
+
+      usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+        acc[profile.id] = profile.username
+        return acc
+      }, {})
+    }
+
+    setTournamentRun(
+      runData
+        ? {
+            id: runData.id,
+            startDate: runData.start_date,
+            status: runData.status,
+            championUserId: runData.champion_user_id,
+          }
+        : null,
+    )
+
+    setTournamentParticipants(
+      (participantsData ?? []).map((participant) => ({
+        userId: participant.user_id,
+        username: usernameById[participant.user_id] ?? fallbackUsername(undefined, participant.user_id),
+        seed: participant.seed,
+      })),
+    )
+
+    setTournamentAttempts(
+      (attemptsData ?? []).map((attempt) => ({
+        id: attempt.id,
+        runId: attempt.run_id,
+        userId: attempt.user_id,
+        roundNumber: attempt.round_number,
+        matchNumber: attempt.match_number,
+        duelIndex: attempt.duel_index,
+        targetColor: attempt.target_color,
+        userColor: attempt.user_color,
+        error: attempt.error,
+        time: attempt.time,
+        score: attempt.score,
+      })),
+    )
+
+    setTournamentLoading(false)
+  }, [demoTournamentMode, isTournamentDate, session])
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -209,7 +845,7 @@ function App() {
           .maybeSingle(),
         supabase
           .from('attempts')
-          .select('user_id,score'),
+          .select('user_id,score,date'),
       ])
 
     if (ownError || leaderboardError) {
@@ -220,7 +856,7 @@ function App() {
 
     setHasPlayedToday(Boolean(ownAttempt))
 
-    const attempts = allAttemptsData ?? []
+    const attempts = (allAttemptsData ?? []).filter((attempt) => attempt.date <= DAILY_LAST_DATE)
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
 
     let usernameById: Record<string, string> = {}
@@ -461,6 +1097,11 @@ function App() {
         setResult(null)
         setHasPlayedToday(false)
         setIsPracticeMode(false)
+        setActiveTournamentMatchId(null)
+        setActiveTournamentRoundNumber(null)
+        setActiveTournamentMatchNumber(null)
+        setActiveTournamentDuelIndex(null)
+        setActiveTournamentTargetHex(null)
       })()
     })
 
@@ -491,6 +1132,13 @@ function App() {
   }, [refreshRecords, session])
 
   useEffect(() => {
+    if (!session) {
+      return
+    }
+    void refreshTournamentData()
+  }, [refreshTournamentData, session])
+
+  useEffect(() => {
     if (!session || !warmupStorageKey || !canUseWarmupFeature) {
       setWarmupUsesLeft(0)
       return
@@ -515,7 +1163,7 @@ function App() {
   }, [session, warmupStorageKey, canUseWarmupFeature, isLaraUser])
 
   useEffect(() => {
-    if (stage !== 'preview' || !difficulty) {
+    if (!isPreviewStage || !difficulty) {
       return
     }
 
@@ -524,7 +1172,7 @@ function App() {
 
     if (isLaraUser) {
       const timeout = window.setTimeout(() => {
-        setStage('pick')
+        setStage(stage === 'preview' ? 'pick' : 'tournamentPick')
         setPickStartedAt(Date.now())
       }, total * 1000)
 
@@ -539,16 +1187,16 @@ function App() {
 
       if (remaining <= 0) {
         window.clearInterval(interval)
-        setStage('pick')
+        setStage(stage === 'preview' ? 'pick' : 'tournamentPick')
         setPickStartedAt(Date.now())
       }
     }, 50)
 
     return () => window.clearInterval(interval)
-  }, [difficulty, isLaraUser, stage])
+  }, [difficulty, isLaraUser, isPreviewStage, stage])
 
   useEffect(() => {
-    if (stage !== 'pick' || !difficulty || pickStartedAt === null) {
+    if (!isPickStage || !difficulty || pickStartedAt === null) {
       return
     }
 
@@ -563,16 +1211,16 @@ function App() {
     tick()
     const interval = window.setInterval(tick, 100)
     return () => window.clearInterval(interval)
-  }, [difficulty, isLaraUser, isTimedScoreChallenge, pickStartedAt, stage])
+  }, [difficulty, isLaraUser, isPickStage, isTimedScoreChallenge, pickStartedAt])
 
   // Skip preview immediately on PrintScreen or window blur/visibility change
   useEffect(() => {
-    if (stage !== 'preview') {
+    if (!isPreviewStage) {
       return
     }
 
     const skipToPickNow = () => {
-      setStage('pick')
+      setStage(stage === 'preview' ? 'pick' : 'tournamentPick')
       setPickStartedAt(Date.now())
     }
 
@@ -600,7 +1248,7 @@ function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('blur', handleBlur)
     }
-  }, [stage])
+  }, [isPreviewStage, stage])
 
   const beginChallenge = (targetDate?: string) => {
     if (!session || !profileUsername) {
@@ -612,6 +1260,11 @@ function App() {
 
     if (dateToUse < FIRST_PLAYABLE_DATE) {
       setErrorText('No se puede jugar antes del 04/05/2026.')
+      return
+    }
+
+    if (dateToUse > DAILY_LAST_DATE) {
+      setErrorText('El reto diario finalizo el 12/05/2026. Desde el 13/05/2026 comienza el torneo.')
       return
     }
 
@@ -630,9 +1283,67 @@ function App() {
     setStage('preview')
   }
 
+  const beginTournamentDuel = (matchId: string) => {
+    if (!session || !profileUsername || !tournamentRun) {
+      setErrorText('No se pudo iniciar el duelo. Intenta actualizar la pestaña de torneo.')
+      return
+    }
+
+    const selectedRound = tournamentRounds.find((round) =>
+      round.matches.some((match) => match.id === matchId),
+    )
+    const selectedMatch = selectedRound?.matches.find((match) => match.id === matchId)
+
+    if (!selectedRound || !selectedMatch || !selectedMatch.player2Id || selectedMatch.winnerUserId) {
+      setErrorText('Este emparejamiento no esta disponible para duelo.')
+      return
+    }
+
+    const isCurrentUserInMatch =
+      selectedMatch.player1Id === session.user.id || selectedMatch.player2Id === session.user.id
+
+    if (!isCurrentUserInMatch) {
+      setErrorText('Solo puedes jugar tus propios emparejamientos.')
+      return
+    }
+
+    const currentUserAttempts =
+      selectedMatch.player1Id === session.user.id
+        ? selectedMatch.player1AttemptsDone
+        : selectedMatch.player2AttemptsDone
+
+    if (currentUserAttempts >= DUELS_PER_MATCH) {
+      setErrorText('Ya completaste tus 3 pruebas en este duelo.')
+      return
+    }
+
+    const duelIndex = currentUserAttempts + 1
+    const targetForDuel = tournamentTargetColor(
+      tournamentRun.startDate,
+      selectedRound.roundNumber,
+      duelIndex,
+    )
+
+    setErrorText(null)
+    setResult(null)
+    setDifficulty('hard')
+    setPickerHsv(defaultHsv)
+    setActiveTournamentMatchId(matchId)
+    setActiveTournamentRoundNumber(selectedRound.roundNumber)
+    setActiveTournamentMatchNumber(selectedMatch.matchNumber)
+    setActiveTournamentDuelIndex(duelIndex)
+    setActiveTournamentTargetHex(targetForDuel)
+    setStage('tournamentPreview')
+  }
+
   const beginPracticeChallenge = () => {
     if (!session || !profileUsername) {
       setErrorText('Debes estar registrado para jugar. Por favor cierra sesion y vuelve a intentarlo.')
+      return
+    }
+
+    if (isDailyClosed) {
+      setErrorText('El calentamiento solo estaba disponible durante los retos diarios.')
       return
     }
 
@@ -680,13 +1391,60 @@ function App() {
 
     const elapsedSeconds = (Date.now() - pickStartedAt) / 1000
     const error = colorErrorPercent(activeTargetHex, selectedHex)
+    const isTournamentConfirm =
+      stage === 'tournamentPick' &&
+      tournamentRun &&
+      activeTournamentRoundNumber !== null &&
+      activeTournamentMatchNumber !== null &&
+      activeTournamentDuelIndex !== null
+
     const score = scoreAttempt(
       error,
       elapsedSeconds,
       difficulty,
-      isTimedScoreChallenge ? activeTimeCap : undefined,
-      isTimedScoreChallenge,
+      isTournamentConfirm ? undefined : (isTimedScoreChallenge ? activeTimeCap : undefined),
+      isTournamentConfirm ? false : isTimedScoreChallenge,
     )
+
+    if (isTournamentConfirm) {
+      const sharedTargetColor = tournamentTargetColor(
+        tournamentRun.startDate,
+        activeTournamentRoundNumber,
+        activeTournamentDuelIndex,
+      )
+
+      const { error: insertDuelError } = await supabase.from('tournament_attempts').insert({
+        run_id: tournamentRun.id,
+        user_id: session.user.id,
+        round_number: activeTournamentRoundNumber,
+        match_number: activeTournamentMatchNumber,
+        duel_index: activeTournamentDuelIndex,
+        target_color: sharedTargetColor,
+        user_color: selectedHex,
+        error,
+        time: elapsedSeconds,
+        score,
+      })
+
+      if (insertDuelError) {
+        setErrorText(insertDuelError.message ?? 'No se pudo guardar el duelo.')
+        setSubmitting(false)
+        return
+      }
+
+      setResult({
+        targetHex: activeTargetHex,
+        userHex: selectedHex,
+        error,
+        score,
+        seconds: elapsedSeconds,
+        difficulty,
+      })
+      setStage('result')
+      setSubmitting(false)
+      await refreshTournamentData()
+      return
+    }
 
     if (isPracticeMode) {
       setResult({
@@ -783,17 +1541,29 @@ function App() {
         <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-zinc-900/10 bg-white/80 p-6 shadow-lg backdrop-blur md:flex-row md:items-center">
           <div>
             <h1 className="text-3xl font-black">Reto PreAltet</h1>
-            <p className="text-sm text-zinc-600">Reto de hoy: {displayDate}</p>
+            <p className="text-sm text-zinc-600">
+              {isDailyClosed
+                ? 'Torneo eliminatorio activo desde el 13/05/2026'
+                : `Reto de hoy: ${displayDate}`}
+            </p>
           </div>
 
             <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
             <button
               type="button"
               onClick={() => beginChallenge(viewDate)}
-              disabled={hasPlayedOnViewDate || loadingData || leaderboardTab === 'general' || isBeforeFirstPlayableViewDate}
+              disabled={
+                hasPlayedOnViewDate ||
+                loadingData ||
+                leaderboardTab !== 'daily' ||
+                isBeforeFirstPlayableViewDate ||
+                isDailyClosed
+              }
                 className="w-full rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
-              {isBeforeFirstPlayableViewDate
+              {isDailyClosed
+                ? 'Reto diario finalizado'
+                : isBeforeFirstPlayableViewDate
                 ? 'No disponible'
                 : hasPlayedOnViewDate
                 ? 'Reto ya completado'
@@ -803,10 +1573,12 @@ function App() {
               <button
                 type="button"
                 onClick={beginPracticeChallenge}
-                disabled={loadingData || hasPlayedToday || warmupUsesLeft <= 0}
+                disabled={loadingData || hasPlayedToday || warmupUsesLeft <= 0 || isDailyClosed}
                 className="w-full rounded-lg border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
               >
-                {hasPlayedToday
+                {isDailyClosed
+                  ? 'Calentamiento finalizado'
+                  : hasPlayedToday
                   ? 'Calentamiento bloqueado'
                   : `Calentamiento (${warmupUsesLeft}/${WARMUP_MAX_USES})`}
               </button>
@@ -856,6 +1628,17 @@ function App() {
               >
                 General
               </button>
+              <button
+                type="button"
+                onClick={() => setLeaderboardTab('tournament')}
+                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
+                  leaderboardTab === 'tournament'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                Torneo
+              </button>
             </div>
             {leaderboardTab === 'daily' ? (
               <div className="space-y-2">
@@ -876,7 +1659,7 @@ function App() {
                   <span className="text-sm font-semibold text-zinc-700">{displayDate}</span>
                   <button
                     type="button"
-                    disabled={viewDate >= date}
+                    disabled={viewDate >= (date > DAILY_LAST_DATE ? DAILY_LAST_DATE : date)}
                     onClick={() => {
                       const d = new Date(viewDate + 'T00:00:00Z')
                       d.setUTCDate(d.getUTCDate() + 1)
@@ -890,17 +1673,29 @@ function App() {
                 </div>
                 <Leaderboard
                   entries={dailyLeaderboard}
-                  title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
+                  title={`Clasificacion${viewDate === (date > DAILY_LAST_DATE ? DAILY_LAST_DATE : date) ? ' del dia' : ''} · ${displayDate}`}
                   showColors={viewDate < date || hasPlayedOnViewDate}
                 />
               </div>
-            ) : (
+            ) : leaderboardTab === 'general' ? (
               <Leaderboard entries={leaderboard} title="Clasificacion general" />
+            ) : (
+              <TournamentTab
+                isTournamentDate={isTournamentDate}
+                loading={tournamentLoading}
+                hasRun={Boolean(tournamentRun)}
+                championName={championName}
+                rounds={tournamentRoundsForUi}
+                onPlayDuel={beginTournamentDuel}
+                onRefresh={() => {
+                  void refreshTournamentData()
+                }}
+              />
             )}
           </div>
         )}
 
-        {stage === 'preview' && difficulty && (
+        {isPreviewStage && difficulty && (
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-8 text-center shadow-lg backdrop-blur">
             <p className="text-sm text-zinc-500">Memoriza este color</p>
             <div className="mx-auto mt-4 h-52 w-full max-w-md rounded-3xl border border-zinc-900/15 shadow-inner transition-opacity duration-500" style={{ backgroundColor: activeTargetHex }} />
@@ -911,7 +1706,7 @@ function App() {
           </section>
         )}
 
-        {stage === 'pick' && difficulty && (
+        {isPickStage && difficulty && (
           <section className="grid gap-6 rounded-3xl border border-zinc-900/10 bg-white/85 p-6 shadow-lg backdrop-blur md:grid-cols-2">
             <div className="space-y-4">
               <p className="text-sm uppercase tracking-wide text-zinc-500">Color oculto</p>
@@ -950,7 +1745,9 @@ function App() {
 
         {stage === 'result' && result && (
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-6 shadow-lg backdrop-blur">
-            <h2 className="text-2xl font-black text-zinc-900">Resultado del dia</h2>
+            <h2 className="text-2xl font-black text-zinc-900">
+              {activeTournamentMatchId ? 'Resultado del duelo' : 'Resultado del dia'}
+            </h2>
             <div className="mt-5 grid gap-5 md:grid-cols-2">
               <div>
                 <p className="mb-2 text-sm text-zinc-600">Color objetivo</p>
@@ -985,10 +1782,20 @@ function App() {
 
             <button
               type="button"
-              onClick={() => setStage('home')}
+              onClick={() => {
+                setStage('home')
+                setActiveTournamentMatchId(null)
+                setActiveTournamentRoundNumber(null)
+                setActiveTournamentMatchNumber(null)
+                setActiveTournamentDuelIndex(null)
+                setActiveTournamentTargetHex(null)
+                if (activeTournamentMatchId) {
+                  setLeaderboardTab('tournament')
+                }
+              }}
               className="mt-5 rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
             >
-              Volver al leaderboard
+              {activeTournamentMatchId ? 'Volver al torneo' : 'Volver al leaderboard'}
             </button>
           </section>
         )}

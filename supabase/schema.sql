@@ -55,3 +55,73 @@ with check (auth.uid() = user_id);
 create policy "Users can read own attempts"
 on public.attempts for select
 using (auth.uid() = user_id);
+
+-- Tournament run metadata (one bracket per configured start date).
+create table if not exists public.tournament_runs (
+  id uuid primary key default gen_random_uuid(),
+  start_date date not null unique,
+  status text not null default 'active' check (status in ('active', 'finished')),
+  champion_user_id uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+-- Seeded players for the run, based on final general leaderboard before tournament.
+create table if not exists public.tournament_participants (
+  run_id uuid not null references public.tournament_runs(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  seed int not null check (seed >= 1),
+  created_at timestamptz not null default now(),
+  primary key (run_id, user_id),
+  constraint tournament_participants_seed_unique unique (run_id, seed)
+);
+
+-- Duel attempts: each player has up to 3 attempts per pairing (round + match).
+create table if not exists public.tournament_attempts (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.tournament_runs(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  round_number int not null check (round_number >= 1),
+  match_number int not null check (match_number >= 1),
+  duel_index int not null check (duel_index between 1 and 3),
+  target_color text not null,
+  user_color text not null,
+  error double precision not null check (error >= 0),
+  time double precision not null check (time >= 0),
+  score double precision not null check (score >= 0),
+  created_at timestamptz not null default now(),
+  constraint tournament_attempts_unique_duel unique (run_id, user_id, round_number, match_number, duel_index)
+);
+
+create index if not exists tournament_attempts_run_round_match_idx
+  on public.tournament_attempts(run_id, round_number, match_number);
+
+alter table public.tournament_runs enable row level security;
+alter table public.tournament_participants enable row level security;
+alter table public.tournament_attempts enable row level security;
+
+create policy "Tournament runs are publicly readable"
+on public.tournament_runs for select
+using (true);
+
+create policy "Authenticated users can create tournament runs"
+on public.tournament_runs for insert
+to authenticated
+with check (true);
+
+create policy "Tournament participants are publicly readable"
+on public.tournament_participants for select
+using (true);
+
+create policy "Authenticated users can insert tournament participants"
+on public.tournament_participants for insert
+to authenticated
+with check (true);
+
+create policy "Tournament attempts are publicly readable"
+on public.tournament_attempts for select
+using (true);
+
+create policy "Users can insert own tournament attempts"
+on public.tournament_attempts for insert
+to authenticated
+with check (auth.uid() = user_id);
