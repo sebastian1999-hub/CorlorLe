@@ -40,7 +40,18 @@ export function Records({ closestColor, farthestColor, highestScore, lowestScore
 
     return (
       <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
-        <h2 className="mb-4 text-base font-bold text-zinc-900 sm:text-xl">{title}</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-zinc-900 sm:text-xl">{title}</h2>
+          {showToggle && (
+            <button
+              type="button"
+              onClick={() => toggleTable(tableKey)}
+              className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+            >
+              {isExpanded ? 'Ver menos' : 'Ver más'}
+            </button>
+          )}
+        </div>
 
         <div className="space-y-2">
           {entries.length === 0 && (
@@ -77,18 +88,6 @@ export function Records({ closestColor, farthestColor, highestScore, lowestScore
             </div>
           ))}
         </div>
-
-        {showToggle && (
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={() => toggleTable(tableKey)}
-              className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-            >
-              {isExpanded ? 'Ver menos' : 'Ver más'}
-            </button>
-          </div>
-        )}
       </section>
     )
   }

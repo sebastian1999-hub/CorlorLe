@@ -61,7 +61,13 @@ export const rgbToHex = (rgb: RGB): string => {
   return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`
 }
 
-export const todayKey = (): string => new Date().toISOString().slice(0, 10)
+export const todayKey = (): string => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 export const dailyTargetColor = (dateKey: string): string => {
   const random = mulberry32(hashString(dateKey))
