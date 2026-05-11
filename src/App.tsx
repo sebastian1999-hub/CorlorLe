@@ -268,7 +268,7 @@ function App() {
       // Get all attempts
       const { data: allAttemptsData, error: attemptsError } = await supabase
         .from('attempts')
-        .select('user_id,score,error,target_color,user_color,date')
+        .select('id,user_id,score,error,target_color,user_color,date')
 
       if (attemptsError || !allAttemptsData) {
         setRecordsLoading(false)
@@ -340,39 +340,27 @@ function App() {
         }))
         .sort((a, b) => a.value - b.value)
 
-      // Calculate highest score
-      const highestScoreMap = new Map<string, { score: number; targetColor?: string; userColor?: string }>()
-      for (const attempt of allAttemptsData) {
-        const current = highestScoreMap.get(attempt.user_id)
-        if (!current || attempt.score > current.score) {
-          highestScoreMap.set(attempt.user_id, {
-            score: attempt.score,
-            targetColor: attempt.target_color,
-            userColor: attempt.user_color,
-          })
-        }
-      }
-
-      const highestScore = Array.from(highestScoreMap.entries())
-        .map(([userId, data]) => ({
-          userId,
-          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
-          value: data.score,
-          valueLabel: 'Puntuación más alta',
-          targetColor: data.targetColor,
-          userColor: data.userColor,
+      // Calculate highest score (global attempts, not per-user best)
+      const highestScore = allAttemptsData
+        .map((attempt) => ({
+          userId: attempt.user_id,
+          username: usernameById[attempt.user_id] ?? fallbackUsername(undefined, attempt.user_id),
+          value: attempt.score,
+          valueLabel: `Reto del ${attempt.date}`,
+          targetColor: attempt.target_color,
+          userColor: attempt.user_color,
         }))
         .sort((a, b) => b.value - a.value)
 
-      // Calculate lowest score
-      const lowestScore = Array.from(highestScoreMap.entries())
-        .map(([userId, data]) => ({
-          userId,
-          username: usernameById[userId] ?? fallbackUsername(undefined, userId),
-          value: data.score,
-          valueLabel: 'Puntuación más baja',
-          targetColor: data.targetColor,
-          userColor: data.userColor,
+      // Calculate lowest score (global attempts)
+      const lowestScore = allAttemptsData
+        .map((attempt) => ({
+          userId: attempt.user_id,
+          username: usernameById[attempt.user_id] ?? fallbackUsername(undefined, attempt.user_id),
+          value: attempt.score,
+          valueLabel: `Reto del ${attempt.date}`,
+          targetColor: attempt.target_color,
+          userColor: attempt.user_color,
         }))
         .sort((a, b) => a.value - b.value)
 

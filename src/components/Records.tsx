@@ -51,7 +51,7 @@ export function Records({ closestColor, farthestColor, highestScore, lowestScore
 
           {visibleEntries.map((entry, index) => (
             <div
-              key={entry.userId}
+              key={`${tableKey}-${entry.userId}-${entry.valueLabel}-${index}`}
               className="grid grid-cols-[32px_1fr_auto_auto_auto] items-center gap-2 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100 sm:grid-cols-[40px_1fr_110px_44px_44px] sm:gap-3"
             >
               <span className="text-center font-bold text-amber-300">#{index + 1}</span>
