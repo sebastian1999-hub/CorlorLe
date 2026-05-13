@@ -20,6 +20,11 @@ type RecordsProps = {
 
 export function Records({ closestColor, farthestColor, highestScore, lowestScore, mostFirstPlaces, loading = false }: RecordsProps) {
   const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({})
+  const biggestExcuses = [
+    { username: 'Jordi', excuse: 'Tenia el brillo automatico' },
+    { username: 'Alvaro', excuse: 'Llevaba gafas polarizadas' },
+    { username: 'Lara', excuse: 'Me puse uñas' },
+  ]
 
   const toggleTable = (tableKey: string) => {
     setExpandedTables((current) => ({
@@ -92,6 +97,31 @@ export function Records({ closestColor, farthestColor, highestScore, lowestScore
     )
   }
 
+  const renderExcusesTable = () => {
+    return (
+      <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-zinc-900 sm:text-xl">Mayor excusa</h2>
+        </div>
+
+        <div className="space-y-2">
+          {biggestExcuses.map((entry, index) => (
+            <div
+              key={`biggestExcuse-${entry.username}-${index}`}
+              className="grid grid-cols-[32px_1fr] items-center gap-2 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100 sm:grid-cols-[40px_1fr] sm:gap-3"
+            >
+              <span className="text-center font-bold text-amber-300">#{index + 1}</span>
+              <div>
+                <p className="font-semibold">{entry.username}</p>
+                <p className="text-xs text-zinc-400">{entry.excuse}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {loading && (
@@ -112,6 +142,7 @@ export function Records({ closestColor, farthestColor, highestScore, lowestScore
             mostFirstPlaces,
             (val) => `${val.toFixed(0)} veces`
           )}
+          {renderExcusesTable()}
         </>
       )}
     </div>

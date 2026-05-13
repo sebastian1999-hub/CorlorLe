@@ -477,6 +477,22 @@ function App() {
     return null
   }, [session, tournamentRounds])
 
+  const isCurrentUserTournamentParticipant = useMemo(() => {
+    if (!session) {
+      return false
+    }
+
+    return tournamentParticipants.some((participant) => participant.userId === session.user.id)
+  }, [session, tournamentParticipants])
+
+  const canOpenRecordsFromTournament = useMemo(() => {
+    if (!isTournamentDate || tournamentLoading || !isCurrentUserTournamentParticipant) {
+      return false
+    }
+
+    return !nextTournamentMatchId
+  }, [isCurrentUserTournamentParticipant, isTournamentDate, nextTournamentMatchId, tournamentLoading])
+
   const tournamentRoundsForUi = useMemo(() => {
     const currentUserId = session?.user.id
     const roundColorLockByRound = tournamentRounds.reduce<Record<number, boolean>>((acc, round) => {
@@ -1270,40 +1286,62 @@ function App() {
     if (!session) {
       return
     }
-    void refreshDailyState()
+    const timeout = window.setTimeout(() => {
+      void refreshDailyState()
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
   }, [refreshDailyState, session])
 
   useEffect(() => {
     if (!session) {
       return
     }
-    void refreshDailyLeaderboard(viewDate)
+    const timeout = window.setTimeout(() => {
+      void refreshDailyLeaderboard(viewDate)
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
   }, [viewDate, refreshDailyLeaderboard, session])
 
   useEffect(() => {
     if (!session) {
       return
     }
-    void refreshRecords()
+    const timeout = window.setTimeout(() => {
+      void refreshRecords()
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
   }, [refreshRecords, session])
 
   useEffect(() => {
     if (!session) {
       return
     }
-    void refreshTournamentData()
+    const timeout = window.setTimeout(() => {
+      void refreshTournamentData()
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
   }, [refreshTournamentData, session])
 
   useEffect(() => {
     if (!session || !warmupStorageKey || !canUseWarmupFeature) {
-      setWarmupUsesLeft(0)
-      return
+      const timeout = window.setTimeout(() => {
+        setWarmupUsesLeft(0)
+      }, 0)
+
+      return () => window.clearTimeout(timeout)
     }
 
     if (isLaraUser) {
-      setWarmupUsesLeft(WARMUP_MAX_USES)
+      const timeout = window.setTimeout(() => {
+        setWarmupUsesLeft(WARMUP_MAX_USES)
+      }, 0)
       window.localStorage.setItem(warmupStorageKey, String(WARMUP_MAX_USES))
-      return
+
+      return () => window.clearTimeout(timeout)
     }
 
     const savedUses = window.localStorage.getItem(warmupStorageKey)
@@ -1312,10 +1350,15 @@ function App() {
       ? Math.max(0, Math.min(WARMUP_MAX_USES, parsedUses))
       : WARMUP_MAX_USES
 
-    setWarmupUsesLeft(initialUses)
+    const timeout = window.setTimeout(() => {
+      setWarmupUsesLeft(initialUses)
+    }, 0)
+
     if (!savedUses) {
       window.localStorage.setItem(warmupStorageKey, String(initialUses))
     }
+
+    return () => window.clearTimeout(timeout)
   }, [session, warmupStorageKey, canUseWarmupFeature, isLaraUser])
 
   useEffect(() => {
@@ -1324,7 +1367,9 @@ function App() {
     }
 
     const total = previewSecondsByDifficulty[difficulty]
-    setPreviewCountdown(total)
+    const initTimeout = window.setTimeout(() => {
+      setPreviewCountdown(total)
+    }, 0)
 
     if (isLaraUser) {
       const timeout = window.setTimeout(() => {
@@ -1332,7 +1377,10 @@ function App() {
         setPickStartedAt(Date.now())
       }, total * 1000)
 
-      return () => window.clearTimeout(timeout)
+      return () => {
+        window.clearTimeout(initTimeout)
+        window.clearTimeout(timeout)
+      }
     }
 
     const started = Date.now()
@@ -1348,7 +1396,10 @@ function App() {
       }
     }, 50)
 
-    return () => window.clearInterval(interval)
+    return () => {
+      window.clearTimeout(initTimeout)
+      window.clearInterval(interval)
+    }
   }, [difficulty, isLaraUser, isPreviewStage, stage])
 
   useEffect(() => {
@@ -1775,7 +1826,7 @@ function App() {
             <button
               type="button"
               onClick={() => setStage('records')}
-              disabled={!hasPlayedToday}
+              disabled={!hasPlayedToday && !canOpenRecordsFromTournament}
               className="w-full rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
               Récords
