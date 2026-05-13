@@ -276,6 +276,15 @@ function App() {
     }, {})
   }, [tournamentParticipants])
 
+  const tournamentRoundScoreByUserId = useMemo(() => {
+    return tournamentAttempts.reduce<Record<number, Record<string, number>>>((acc, attempt) => {
+      const roundScores = acc[attempt.roundNumber] ?? {}
+      roundScores[attempt.userId] = (roundScores[attempt.userId] ?? 0) + attempt.score
+      acc[attempt.roundNumber] = roundScores
+      return acc
+    }, {})
+  }, [tournamentAttempts])
+
   const tournamentRounds = useMemo<TournamentRoundView[]>(() => {
     if (!tournamentRun || tournamentParticipants.length < 2) {
       return []
@@ -288,7 +297,7 @@ function App() {
 
     while (currentRoundParticipants.length > 1 && safetyCounter < 20) {
       safetyCounter += 1
-      const pairings = buildRoundPairings(currentRoundParticipants)
+      const pairings = buildRoundPairings(currentRoundParticipants, roundNumber, tournamentRoundScoreByUserId[roundNumber - 1] ?? {})
       const roundMatches: TournamentMatchView[] = []
       const winners: TournamentParticipant[] = []
 
@@ -403,7 +412,7 @@ function App() {
     }
 
     return rounds
-  }, [tournamentAttempts, tournamentParticipantByUserId, tournamentParticipants, tournamentRun])
+  }, [tournamentAttempts, tournamentParticipantByUserId, tournamentParticipants, tournamentRun, tournamentRoundScoreByUserId])
 
   const championUserId = useMemo(() => {
     if (tournamentRounds.length === 0) {

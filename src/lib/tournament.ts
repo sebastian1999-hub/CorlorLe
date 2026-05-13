@@ -12,13 +12,28 @@ export type SeededPairing = {
   autoWinnerId: string | null
 }
 
-export const buildRoundPairings = (participants: TournamentParticipant[]): SeededPairing[] => {
-  const sorted = [...participants].sort((a, b) => a.seed - b.seed)
-  const remaining = [...sorted]
-  const pairings: SeededPairing[] = []
+export const buildRoundPairings = (
+  participants: TournamentParticipant[],
+  roundNumber: number,
+  previousRoundScores: Record<string, number> = {},
+): SeededPairing[] => {
+  let orderedParticipants = [...participants]
 
-  if (remaining.length % 2 !== 0 && remaining.length > 0) {
-    const byePlayer = remaining.shift()
+  if (roundNumber === 1) {
+    orderedParticipants.sort((a, b) => a.seed - b.seed)
+  } else {
+    orderedParticipants.sort((a, b) => {
+      const scoreDiff = (previousRoundScores[b.userId] ?? 0) - (previousRoundScores[a.userId] ?? 0)
+      if (scoreDiff !== 0) {
+        return scoreDiff
+      }
+      return a.seed - b.seed
+    })
+  }
+
+  const pairings: SeededPairing[] = []
+  if (orderedParticipants.length % 2 !== 0 && orderedParticipants.length > 0) {
+    const byePlayer = orderedParticipants.shift()
     if (byePlayer) {
       pairings.push({
         matchNumber: 1,
@@ -29,10 +44,10 @@ export const buildRoundPairings = (participants: TournamentParticipant[]): Seede
     }
   }
 
-  const half = remaining.length / 2
+  const half = orderedParticipants.length / 2
   for (let i = 0; i < half; i += 1) {
-    const topSeed = remaining[i]
-    const lowSeed = remaining[remaining.length - 1 - i]
+    const topSeed = orderedParticipants[i]
+    const lowSeed = orderedParticipants[orderedParticipants.length - 1 - i]
     pairings.push({
       matchNumber: pairings.length + 1,
       player1Id: topSeed.userId,
