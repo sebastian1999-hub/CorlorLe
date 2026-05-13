@@ -867,9 +867,32 @@ function App() {
       return
     }
 
-    await refreshTournamentData()
+    setTournamentMatchPredictions((previous) => {
+      const exists = previous.some(
+        (prediction) =>
+          prediction.runId === tournamentRun.id &&
+          prediction.voterUserId === session.user.id &&
+          prediction.roundNumber === roundNumber &&
+          prediction.matchNumber === matchNumber,
+      )
+
+      if (exists) {
+        return previous
+      }
+
+      return [
+        ...previous,
+        {
+          runId: tournamentRun.id,
+          voterUserId: session.user.id,
+          roundNumber,
+          matchNumber,
+          predictedWinnerUserId,
+        },
+      ]
+    })
     setPodiumSaving(false)
-  }, [myTournamentPredictionKeys, refreshTournamentData, session, tournamentRoundsForUi, tournamentRun])
+  }, [myTournamentPredictionKeys, session, tournamentRoundsForUi, tournamentRun])
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
