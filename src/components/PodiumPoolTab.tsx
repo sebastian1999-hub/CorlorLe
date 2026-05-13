@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { TOURNAMENT_START_DATE } from '../lib/tournament'
 
 type MatchPrediction = {
@@ -45,6 +45,32 @@ export function PodiumPoolTab({
   myPredictionKeys,
   onVote,
 }: PodiumPoolTabProps) {
+  const [openRoundNumbers, setOpenRoundNumbers] = useState<number[]>([])
+
+  const firstRoundNumber = useMemo(() => rounds[0]?.roundNumber ?? null, [rounds])
+
+  useEffect(() => {
+    if (firstRoundNumber === null) {
+      setOpenRoundNumbers([])
+      return
+    }
+
+    setOpenRoundNumbers((previous) => {
+      if (previous.length === 0) {
+        return [firstRoundNumber]
+      }
+      return previous.filter((roundNumber) => rounds.some((round) => round.roundNumber === roundNumber))
+    })
+  }, [firstRoundNumber, rounds])
+
+  const toggleRound = (roundNumber: number) => {
+    setOpenRoundNumbers((previous) =>
+      previous.includes(roundNumber)
+        ? previous.filter((value) => value !== roundNumber)
+        : [...previous, roundNumber],
+    )
+  }
+
   const voteCountsByMatch = useMemo(() => {
     const counts = new Map<string, Map<string, number>>()
 
@@ -100,69 +126,89 @@ export function PodiumPoolTab({
 
       {!loading && rounds.length > 0 && (
         <div className="mt-4 space-y-4">
-          {rounds.map((round) => (
-            <article key={`vote-round-${round.roundNumber}`} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Ronda {round.roundNumber}</h3>
-              <div className="mt-3 space-y-3">
-                {round.matches.map((match) => {
-                  const matchKey = `R${match.roundNumber}-M${match.matchNumber}`
-                  const alreadyVoted = myPredictionKeys.has(matchKey)
-                  const voteCounts = voteCountsByMatch.get(matchKey) ?? new Map<string, number>()
-                  const player2 = match.player2
-                  const isPlayable = Boolean(match.player2) && !match.winnerUserId
+          {rounds.map((round) => {
+            const isRoundOpen = openRoundNumbers.includes(round.roundNumber)
 
-                  return (
-                    <div key={matchKey} className="rounded-xl border border-zinc-200 bg-white p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-zinc-800">
-                          Combate {match.matchNumber}: {match.player1.username} vs {match.player2?.username ?? 'BYE'}
-                        </p>
-                        {match.winnerUserId ? (
-                          <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">Finalizado</span>
-                        ) : (
-                          <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Abierto</span>
-                        )}
-                      </div>
+            return (
+              <article key={`vote-round-${round.roundNumber}`} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <button
+                  type="button"
+                  onClick={() => toggleRound(round.roundNumber)}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl px-1 py-1 text-left transition hover:bg-zinc-100"
+                >
+                  <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Ronda {round.roundNumber}</h3>
+                  <span
+                    className={`text-xs font-bold text-zinc-500 transition-transform duration-300 ${
+                      isRoundOpen ? 'rotate-180' : ''
+                    }`}
+                  >
+                    ▼
+                  </span>
+                </button>
 
-                      {!isPlayable ? (
-                        <p className="mt-2 text-xs text-zinc-500">Sin votacion disponible para este combate.</p>
-                      ) : alreadyVoted ? (
-                        <p className="mt-2 text-xs font-semibold text-emerald-700">Voto registrado. No se puede modificar.</p>
-                      ) : (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => onVote(match.roundNumber, match.matchNumber, match.player1.userId)}
-                            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Votar a {match.player1.username}
-                          </button>
+                {isRoundOpen && (
+                  <div className="mt-3 space-y-3">
+                    {round.matches.map((match) => {
+                      const matchKey = `R${match.roundNumber}-M${match.matchNumber}`
+                      const alreadyVoted = myPredictionKeys.has(matchKey)
+                      const voteCounts = voteCountsByMatch.get(matchKey) ?? new Map<string, number>()
+                      const player2 = match.player2
+                      const isPlayable = Boolean(match.player2) && !match.winnerUserId
+
+                      return (
+                        <div key={matchKey} className="rounded-xl border border-zinc-200 bg-white p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-zinc-800">
+                              Combate {match.matchNumber}: {match.player1.username} vs {match.player2?.username ?? 'BYE'}
+                            </p>
+                            {match.winnerUserId ? (
+                              <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">Finalizado</span>
+                            ) : (
+                              <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Abierto</span>
+                            )}
+                          </div>
+
+                          {!isPlayable ? (
+                            <p className="mt-2 text-xs text-zinc-500">Sin votacion disponible para este combate.</p>
+                          ) : alreadyVoted ? (
+                            <p className="mt-2 text-xs font-semibold text-emerald-700">Voto registrado. No se puede modificar.</p>
+                          ) : (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => onVote(match.roundNumber, match.matchNumber, match.player1.userId)}
+                                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Votar a {match.player1.username}
+                              </button>
+                              {player2 && (
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() => onVote(match.roundNumber, match.matchNumber, player2.userId)}
+                                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Votar a {player2.username}
+                                </button>
+                              )}
+                            </div>
+                          )}
+
                           {player2 && (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => onVote(match.roundNumber, match.matchNumber, player2.userId)}
-                              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              Votar a {player2.username}
-                            </button>
+                            <div className="mt-3 grid gap-2 rounded-lg bg-zinc-50 p-2 text-xs text-zinc-700 sm:grid-cols-2">
+                              <p>{match.player1.username}: {voteCounts.get(match.player1.userId) ?? 0} votos</p>
+                              <p>{player2.username}: {voteCounts.get(player2.userId) ?? 0} votos</p>
+                            </div>
                           )}
                         </div>
-                      )}
-
-                      {player2 && (
-                        <div className="mt-3 grid gap-2 rounded-lg bg-zinc-50 p-2 text-xs text-zinc-700 sm:grid-cols-2">
-                          <p>{match.player1.username}: {voteCounts.get(match.player1.userId) ?? 0} votos</p>
-                          <p>{player2.username}: {voteCounts.get(player2.userId) ?? 0} votos</p>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </article>
-          ))}
+                      )
+                    })}
+                  </div>
+                )}
+              </article>
+            )
+          })}
         </div>
       )}
     </section>
