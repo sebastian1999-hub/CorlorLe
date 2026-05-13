@@ -70,3 +70,11 @@ export type TournamentMatch = {
   winnerId: string | null
   finishedAt: string | null
 }
+
+export type TournamentPodiumPrediction = {
+  runId: string
+  voterUserId: string
+  firstUserId: string
+  secondUserId: string
+  thirdUserId: string
+}

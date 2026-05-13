@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
+import { PodiumPoolTab } from './components/PodiumPoolTab'
 import { Records } from './components/Records'
 import { TournamentTab } from './components/TournamentTab'
 import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from './lib/authGuard'
@@ -20,7 +21,15 @@ import {
   TOURNAMENT_START_DATE,
   tournamentTargetColor,
 } from './lib/tournament'
-import type { Difficulty, HSV, LeaderboardEntry, TournamentAttempt, TournamentParticipant, TournamentRun } from './types'
+import type {
+  Difficulty,
+  HSV,
+  LeaderboardEntry,
+  TournamentAttempt,
+  TournamentParticipant,
+  TournamentPodiumPrediction,
+  TournamentRun,
+} from './types'
 
 type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
 
@@ -160,6 +169,8 @@ const createDemoTournamentAttempts = (
 }
 
 function App() {
+  const initialLeaderboardTab: 'daily' | 'general' | 'tournament' | 'podium' = 'tournament'
+
   const [session, setSession] = useState<Session | null>(null)
   const [profileUsername, setProfileUsername] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -177,7 +188,7 @@ function App() {
   const [result, setResult] = useState<ResultState | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general' | 'tournament'>('daily')
+  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general' | 'tournament' | 'podium'>(initialLeaderboardTab)
   const [viewDate, setViewDate] = useState<string>(() => {
     const currentDate = todayKey()
     return currentDate > DAILY_LAST_DATE ? DAILY_LAST_DATE : currentDate
@@ -195,6 +206,8 @@ function App() {
   const [tournamentRun, setTournamentRun] = useState<TournamentRun | null>(null)
   const [tournamentParticipants, setTournamentParticipants] = useState<TournamentParticipant[]>([])
   const [tournamentAttempts, setTournamentAttempts] = useState<TournamentAttempt[]>([])
+  const [tournamentPodiumPredictions, setTournamentPodiumPredictions] = useState<TournamentPodiumPrediction[]>([])
+  const [podiumSaving, setPodiumSaving] = useState(false)
   const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
   const [recordsClosestColor, setRecordsClosestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsFarthestColor, setRecordsFarthestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
@@ -219,13 +232,6 @@ function App() {
   const shouldForceTournament = forceTournamentNow || demoTournamentMode
   const isTournamentDate = shouldForceTournament || date >= TOURNAMENT_START_DATE
   const isDailyClosed = shouldForceTournament || date > DAILY_LAST_DATE
-
-  useEffect(() => {
-    if (!demoTournamentMode) {
-      return
-    }
-    setLeaderboardTab('tournament')
-  }, [])
 
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
@@ -420,6 +426,14 @@ function App() {
     ? (tournamentParticipantByUserId[championUserId]?.username ?? null)
     : null
 
+  const myPodiumPrediction = useMemo(() => {
+    if (!session) {
+      return null
+    }
+
+    return tournamentPodiumPredictions.find((prediction) => prediction.voterUserId === session.user.id) ?? null
+  }, [session, tournamentPodiumPredictions])
+
   const nextTournamentMatchId = useMemo(() => {
     if (!session) {
       return null
@@ -600,6 +614,7 @@ function App() {
       setTournamentRun(null)
       setTournamentParticipants([])
       setTournamentAttempts([])
+      setTournamentPodiumPredictions([])
       return
     }
 
@@ -618,6 +633,7 @@ function App() {
       })
       setTournamentParticipants(demoParticipants)
       setTournamentAttempts(demoAttempts)
+      setTournamentPodiumPredictions([])
       setTournamentLoading(false)
       return
     }
@@ -703,11 +719,12 @@ function App() {
       setTournamentRun(null)
       setTournamentParticipants([])
       setTournamentAttempts([])
+      setTournamentPodiumPredictions([])
       setTournamentLoading(false)
       return
     }
 
-    const [{ data: runData }, { data: participantsData }, { data: attemptsData }] = await Promise.all([
+    const [{ data: runData }, { data: participantsData }, { data: attemptsData }, { data: predictionsData }] = await Promise.all([
       supabase
         .from('tournament_runs')
         .select('id,start_date,status,champion_user_id')
@@ -721,6 +738,10 @@ function App() {
       supabase
         .from('tournament_attempts')
         .select('id,run_id,user_id,round_number,match_number,duel_index,target_color,user_color,error,time,score')
+        .eq('run_id', runId),
+      supabase
+        .from('tournament_podium_predictions')
+        .select('run_id,voter_user_id,first_user_id,second_user_id,third_user_id')
         .eq('run_id', runId),
     ])
 
@@ -774,8 +795,68 @@ function App() {
       })),
     )
 
+    setTournamentPodiumPredictions(
+      (predictionsData ?? []).map((prediction) => ({
+        runId: prediction.run_id,
+        voterUserId: prediction.voter_user_id,
+        firstUserId: prediction.first_user_id,
+        secondUserId: prediction.second_user_id,
+        thirdUserId: prediction.third_user_id,
+      })),
+    )
+
     setTournamentLoading(false)
   }, [demoTournamentMode, isTournamentDate, session])
+
+  const savePodiumPrediction = useCallback(async (
+    firstUserId: string,
+    secondUserId: string,
+    thirdUserId: string,
+  ) => {
+    if (!session || !tournamentRun) {
+      setErrorText('No se pudo guardar la porra. Intenta actualizar la pestaña.')
+      return
+    }
+
+    const picks = [firstUserId, secondUserId, thirdUserId]
+    if (picks.some((pick) => pick.length === 0) || new Set(picks).size !== 3) {
+      setErrorText('Debes seleccionar 3 jugadores distintos para la porra.')
+      return
+    }
+
+    if (picks.includes(session.user.id)) {
+      setErrorText('No puedes votarte a ti mismo en la porra del podio.')
+      return
+    }
+
+    setPodiumSaving(true)
+    setErrorText(null)
+
+    const { error: upsertError } = await supabase
+      .from('tournament_podium_predictions')
+      .upsert(
+        {
+          run_id: tournamentRun.id,
+          voter_user_id: session.user.id,
+          first_user_id: firstUserId,
+          second_user_id: secondUserId,
+          third_user_id: thirdUserId,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'run_id,voter_user_id',
+        },
+      )
+
+    if (upsertError) {
+      setErrorText(upsertError.message ?? 'No se pudo guardar la porra.')
+      setPodiumSaving(false)
+      return
+    }
+
+    await refreshTournamentData()
+    setPodiumSaving(false)
+  }, [refreshTournamentData, session, tournamentRun])
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -1565,6 +1646,10 @@ function App() {
       return
     }
 
+    if (leaderboardTab === 'podium') {
+      return
+    }
+
     beginChallenge(viewDate)
   }
 
@@ -1598,6 +1683,10 @@ function App() {
                   return !isTournamentDate || tournamentLoading || !nextTournamentMatchId
                 }
 
+                if (leaderboardTab === 'podium') {
+                  return true
+                }
+
                 return (
                   hasPlayedOnViewDate ||
                   loadingData ||
@@ -1614,6 +1703,8 @@ function App() {
                   : nextTournamentMatchId
                     ? 'Realizar duelo'
                     : 'Sin duelos pendientes'
+                : leaderboardTab === 'podium'
+                  ? 'Completa la porra abajo'
                 : isDailyClosed
                   ? 'Reto diario finalizado'
                   : isBeforeFirstPlayableViewDate
@@ -1692,6 +1783,17 @@ function App() {
               >
                 Torneo
               </button>
+              <button
+                type="button"
+                onClick={() => setLeaderboardTab('podium')}
+                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
+                  leaderboardTab === 'podium'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                Porra
+              </button>
             </div>
             {leaderboardTab === 'daily' ? (
               <div className="space-y-2">
@@ -1732,13 +1834,29 @@ function App() {
               </div>
             ) : leaderboardTab === 'general' ? (
               <Leaderboard entries={leaderboard} title="Clasificacion general" />
-            ) : (
+            ) : leaderboardTab === 'tournament' ? (
               <TournamentTab
                 isTournamentDate={isTournamentDate}
                 loading={tournamentLoading}
                 hasRun={Boolean(tournamentRun)}
                 championName={championName}
                 rounds={tournamentRoundsForUi}
+                onRefresh={() => {
+                  void refreshTournamentData()
+                }}
+              />
+            ) : (
+              <PodiumPoolTab
+                isTournamentDate={isTournamentDate}
+                loading={tournamentLoading}
+                saving={podiumSaving}
+                currentUserId={session.user.id}
+                participants={tournamentParticipants}
+                predictions={tournamentPodiumPredictions}
+                myPrediction={myPodiumPrediction}
+                onSave={(firstUserId, secondUserId, thirdUserId) => {
+                  void savePodiumPrediction(firstUserId, secondUserId, thirdUserId)
+                }}
                 onRefresh={() => {
                   void refreshTournamentData()
                 }}

@@ -125,3 +125,45 @@ create policy "Users can insert own tournament attempts"
 on public.tournament_attempts for insert
 to authenticated
 with check (auth.uid() = user_id);
+
+-- Podium predictions for the tournament final standings.
+create table if not exists public.tournament_podium_predictions (
+  run_id uuid not null references public.tournament_runs(id) on delete cascade,
+  voter_user_id uuid not null references auth.users(id) on delete cascade,
+  first_user_id uuid not null references auth.users(id) on delete cascade,
+  second_user_id uuid not null references auth.users(id) on delete cascade,
+  third_user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (run_id, voter_user_id),
+  constraint tournament_podium_predictions_distinct_picks check (
+    first_user_id <> second_user_id
+    and first_user_id <> third_user_id
+    and second_user_id <> third_user_id
+  ),
+  constraint tournament_podium_predictions_no_self_vote check (
+    voter_user_id <> first_user_id
+    and voter_user_id <> second_user_id
+    and voter_user_id <> third_user_id
+  )
+);
+
+create index if not exists tournament_podium_predictions_run_idx
+  on public.tournament_podium_predictions(run_id);
+
+alter table public.tournament_podium_predictions enable row level security;
+
+create policy "Tournament podium predictions are publicly readable"
+on public.tournament_podium_predictions for select
+using (true);
+
+create policy "Users can insert own tournament podium prediction"
+on public.tournament_podium_predictions for insert
+to authenticated
+with check (auth.uid() = voter_user_id);
+
+create policy "Users can update own tournament podium prediction"
+on public.tournament_podium_predictions for update
+to authenticated
+using (auth.uid() = voter_user_id)
+with check (auth.uid() = voter_user_id);
