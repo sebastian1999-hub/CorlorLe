@@ -495,34 +495,32 @@ function App() {
 
   const tournamentRoundsForUi = useMemo(() => {
     const currentUserId = session?.user.id
-    const roundColorLockByRound = tournamentRounds.reduce<Record<number, boolean>>((acc, round) => {
-      if (!currentUserId) {
-        acc[round.roundNumber] = false
-        return acc
+
+    // Helper: determine if a player can reveal colors
+    // A player can see colors if:
+    // 1. They are the current user, OR
+    // 2. They have completed all their duels in this round
+    const canPlayerRevealColors = (
+      playerId: string,
+      playerAttemptsDone: number,
+    ): boolean => {
+      // Current user can always see their own match
+      if (playerId === currentUserId) {
+        return true
       }
 
-      const currentUserMatch = round.matches.find(
-        (match) => match.player1Id === currentUserId || match.player2Id === currentUserId,
-      )
-
-      if (!currentUserMatch || !currentUserMatch.player2Id) {
-        acc[round.roundNumber] = false
-        return acc
+      // Player must complete all duels to see other players' colors
+      if (playerAttemptsDone < DUELS_PER_MATCH) {
+        return false
       }
 
-      const currentUserAttemptsDone =
-        currentUserMatch.player1Id === currentUserId
-          ? currentUserMatch.player1AttemptsDone
-          : currentUserMatch.player2AttemptsDone
-
-      acc[round.roundNumber] = currentUserAttemptsDone < DUELS_PER_MATCH
-      return acc
-    }, {})
+      // If completed all duels, player can see colors
+      return true
+    }
 
     return tournamentRounds.map((round) => ({
       roundNumber: round.roundNumber,
       matches: round.matches.map((match) => {
-        const hideOtherColorsInRound = roundColorLockByRound[round.roundNumber] ?? false
         const player1DuelAttempts = getUserMatchAttempts(
           tournamentAttempts,
           match.roundNumber,
@@ -614,7 +612,7 @@ function App() {
             username: player1?.username ?? fallbackUsername(undefined, match.player1Id),
             attemptsDone: match.player1AttemptsDone,
             totalScore: match.player1Score,
-            revealColors: !hideOtherColorsInRound || match.player1Id === currentUserId,
+            revealColors: canPlayerRevealColors(match.player1Id, match.player1AttemptsDone),
             duels: toDuelRows(player1DuelAttempts, player2DuelAttempts),
           },
           player2: player2
@@ -623,7 +621,7 @@ function App() {
                 username: player2.username,
                 attemptsDone: match.player2AttemptsDone,
                 totalScore: match.player2Score,
-                revealColors: !hideOtherColorsInRound || player2.userId === currentUserId,
+                revealColors: canPlayerRevealColors(player2.userId, match.player2AttemptsDone),
                 duels: toDuelRows(player2DuelAttempts, player1DuelAttempts),
               }
             : null,
