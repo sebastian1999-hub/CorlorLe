@@ -42,7 +42,6 @@ type TournamentTabProps = {
   hasRun: boolean
   championName: string | null
   rounds: TournamentRound[]
-  onPlayDuel: (matchId: string) => void
   onRefresh: () => void
 }
 
@@ -100,8 +99,8 @@ const renderCounter = (player: TournamentPlayerProgress, duelWins?: number) => {
             className={`grid grid-cols-[32px_1fr_auto_auto_auto] items-center gap-2 rounded-xl px-3 py-3 text-zinc-100 sm:grid-cols-[40px_1fr_110px_44px_44px] sm:gap-3 ${duelRowClass}`}
           >
             <span className="text-center font-bold text-amber-300">D{duel.duelIndex}</span>
-            <div>
-              <p className={`font-semibold ${duelLabelClass}`}>{duelStatus}</p>
+            <div className="min-w-0">
+              <p className={`truncate font-semibold ${duelLabelClass}`}>{duelStatus}</p>
               <p className="text-xs text-zinc-400">
                 {duel.done
                   ? `${duel.error?.toFixed(2)}% de error`
@@ -111,7 +110,7 @@ const renderCounter = (player: TournamentPlayerProgress, duelWins?: number) => {
             <p className="text-right font-extrabold text-emerald-300">
               {duel.done ? duel.score?.toFixed(0) : '-'}
             </p>
-            {player.revealColors && duel.targetColor ? (
+            {player.revealColors && duel.done && duel.targetColor ? (
               <div
                 className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
                 style={{ backgroundColor: duel.targetColor }}
@@ -125,7 +124,7 @@ const renderCounter = (player: TournamentPlayerProgress, duelWins?: number) => {
                 <span className="flex h-full w-full items-center justify-center text-lg font-black text-zinc-200">?</span>
               </div>
             )}
-            {player.revealColors && duel.userColor ? (
+            {player.revealColors && duel.done && duel.userColor ? (
               <div
                 className="h-8 w-8 rounded border border-zinc-400 sm:h-10 sm:w-10"
                 style={{ backgroundColor: duel.userColor }}
@@ -154,7 +153,6 @@ export function TournamentTab({
   hasRun,
   championName,
   rounds,
-  onPlayDuel,
   onRefresh,
 }: TournamentTabProps) {
   const [openRoundNumbers, setOpenRoundNumbers] = useState<number[]>([])
@@ -342,16 +340,6 @@ export function TournamentTab({
                                   ? `Ganador: ${match.winnerUserId === match.player1.userId ? match.player1.username : match.player2?.username ?? '-'}`
                                   : 'Pendiente de finalizar'}
                               </p>
-                              {match.isCurrentUserInMatch && match.player2 && (
-                                <button
-                                  type="button"
-                                  onClick={() => onPlayDuel(match.id)}
-                                  disabled={!match.canCurrentUserPlay}
-                                  className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Realizar duelo
-                                </button>
-                              )}
                             </div>
                           </div>
                         </div>

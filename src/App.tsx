@@ -420,6 +420,36 @@ function App() {
     ? (tournamentParticipantByUserId[championUserId]?.username ?? null)
     : null
 
+  const nextTournamentMatchId = useMemo(() => {
+    if (!session) {
+      return null
+    }
+
+    for (const round of tournamentRounds) {
+      for (const match of round.matches) {
+        if (!match.player2Id || match.winnerUserId) {
+          continue
+        }
+
+        const isCurrentUserInMatch =
+          match.player1Id === session.user.id || match.player2Id === session.user.id
+
+        if (!isCurrentUserInMatch) {
+          continue
+        }
+
+        const currentUserAttemptsDone =
+          match.player1Id === session.user.id ? match.player1AttemptsDone : match.player2AttemptsDone
+
+        if (currentUserAttemptsDone < DUELS_PER_MATCH) {
+          return match.id
+        }
+      }
+    }
+
+    return null
+  }, [session, tournamentRounds])
+
   const tournamentRoundsForUi = useMemo(() => {
     const currentUserId = session?.user.id
     const roundColorLockByRound = tournamentRounds.reduce<Record<number, boolean>>((acc, round) => {
@@ -1527,6 +1557,17 @@ function App() {
     await supabase.auth.signOut()
   }
 
+  const handlePrimaryAction = () => {
+    if (leaderboardTab === 'tournament') {
+      if (nextTournamentMatchId) {
+        beginTournamentDuel(nextTournamentMatchId)
+      }
+      return
+    }
+
+    beginChallenge(viewDate)
+  }
+
   if (authLoading) {
     return <p className="p-8 text-center">Cargando sesion...</p>
   }
@@ -1551,23 +1592,35 @@ function App() {
             <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
             <button
               type="button"
-              onClick={() => beginChallenge(viewDate)}
-              disabled={
-                hasPlayedOnViewDate ||
-                loadingData ||
-                leaderboardTab !== 'daily' ||
-                isBeforeFirstPlayableViewDate ||
-                isDailyClosed
-              }
+              onClick={handlePrimaryAction}
+              disabled={(() => {
+                if (leaderboardTab === 'tournament') {
+                  return !isTournamentDate || tournamentLoading || !nextTournamentMatchId
+                }
+
+                return (
+                  hasPlayedOnViewDate ||
+                  loadingData ||
+                  leaderboardTab !== 'daily' ||
+                  isBeforeFirstPlayableViewDate ||
+                  isDailyClosed
+                )
+              })()}
                 className="w-full rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
-              {isDailyClosed
-                ? 'Reto diario finalizado'
-                : isBeforeFirstPlayableViewDate
-                ? 'No disponible'
-                : hasPlayedOnViewDate
-                ? 'Reto ya completado'
-                : 'Reto Diario'}
+              {leaderboardTab === 'tournament'
+                ? !isTournamentDate
+                  ? 'Torneo no disponible'
+                  : nextTournamentMatchId
+                    ? 'Realizar duelo'
+                    : 'Sin duelos pendientes'
+                : isDailyClosed
+                  ? 'Reto diario finalizado'
+                  : isBeforeFirstPlayableViewDate
+                    ? 'No disponible'
+                    : hasPlayedOnViewDate
+                      ? 'Reto ya completado'
+                      : 'Reto Diario'}
             </button>
             {canUseWarmupFeature && (
               <button
@@ -1686,7 +1739,6 @@ function App() {
                 hasRun={Boolean(tournamentRun)}
                 championName={championName}
                 rounds={tournamentRoundsForUi}
-                onPlayDuel={beginTournamentDuel}
                 onRefresh={() => {
                   void refreshTournamentData()
                 }}
