@@ -496,28 +496,6 @@ function App() {
   const tournamentRoundsForUi = useMemo(() => {
     const currentUserId = session?.user.id
 
-    // Helper: determine if a player can reveal colors
-    // A player can see colors if:
-    // 1. They are the current user, OR
-    // 2. They have completed all their duels in this round
-    const canPlayerRevealColors = (
-      playerId: string,
-      playerAttemptsDone: number,
-    ): boolean => {
-      // Current user can always see their own match
-      if (playerId === currentUserId) {
-        return true
-      }
-
-      // Player must complete all duels to see other players' colors
-      if (playerAttemptsDone < DUELS_PER_MATCH) {
-        return false
-      }
-
-      // If completed all duels, player can see colors
-      return true
-    }
-
     return tournamentRounds.map((round) => ({
       roundNumber: round.roundNumber,
       matches: round.matches.map((match) => {
@@ -600,6 +578,11 @@ function App() {
           ? (match.player1Id === currentUserId ? match.player1AttemptsDone : match.player2AttemptsDone)
           : 0
 
+        // Current user can only see other colors if they:
+        // 1. Are viewing their own match (not eliminated), AND
+        // 2. Have completed all their duels in this round
+        const canCurrentUserSeeOtherColors = !isCurrentUserInMatch || currentUserAttemptsDone >= DUELS_PER_MATCH
+
         return {
           id: match.id,
           roundNumber: match.roundNumber,
@@ -612,7 +595,7 @@ function App() {
             username: player1?.username ?? fallbackUsername(undefined, match.player1Id),
             attemptsDone: match.player1AttemptsDone,
             totalScore: match.player1Score,
-            revealColors: canPlayerRevealColors(match.player1Id, match.player1AttemptsDone),
+            revealColors: match.player1Id === currentUserId || canCurrentUserSeeOtherColors,
             duels: toDuelRows(player1DuelAttempts, player2DuelAttempts),
           },
           player2: player2
@@ -621,7 +604,7 @@ function App() {
                 username: player2.username,
                 attemptsDone: match.player2AttemptsDone,
                 totalScore: match.player2Score,
-                revealColors: canPlayerRevealColors(player2.userId, match.player2AttemptsDone),
+                revealColors: player2.userId === currentUserId || canCurrentUserSeeOtherColors,
                 duels: toDuelRows(player2DuelAttempts, player1DuelAttempts),
               }
             : null,
