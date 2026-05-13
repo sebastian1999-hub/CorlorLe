@@ -294,7 +294,7 @@ export function TournamentTab({
                             className="flex w-full items-center justify-between gap-2 text-left"
                           >
                             <p className="text-sm font-semibold text-zinc-700">
-                              Emparejamiento #{match.matchNumber}: {match.player1.username} vs {match.player2?.username ?? 'BYE'}
+                              {match.player1.username} vs {match.player2?.username ?? 'BYE'}
                             </p>
                             <div className="flex items-center gap-3">
                               {match.winnerUserId && match.player2 && (
