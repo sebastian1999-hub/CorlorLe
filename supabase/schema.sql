@@ -162,8 +162,30 @@ on public.tournament_podium_predictions for insert
 to authenticated
 with check (auth.uid() = voter_user_id);
 
-create policy "Users can update own tournament podium prediction"
-on public.tournament_podium_predictions for update
+drop policy if exists "Users can update own tournament podium prediction"
+on public.tournament_podium_predictions;
+
+-- Favorite vote per match and round in the tournament bracket.
+create table if not exists public.tournament_match_predictions (
+  run_id uuid not null references public.tournament_runs(id) on delete cascade,
+  voter_user_id uuid not null references auth.users(id) on delete cascade,
+  round_number int not null check (round_number >= 1),
+  match_number int not null check (match_number >= 1),
+  predicted_winner_user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (run_id, voter_user_id, round_number, match_number)
+);
+
+create index if not exists tournament_match_predictions_run_round_match_idx
+  on public.tournament_match_predictions(run_id, round_number, match_number);
+
+alter table public.tournament_match_predictions enable row level security;
+
+create policy "Tournament match predictions are publicly readable"
+on public.tournament_match_predictions for select
+using (true);
+
+create policy "Users can insert own tournament match prediction"
+on public.tournament_match_predictions for insert
 to authenticated
-using (auth.uid() = voter_user_id)
 with check (auth.uid() = voter_user_id);

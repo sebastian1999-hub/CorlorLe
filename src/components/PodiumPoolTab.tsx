@@ -1,97 +1,65 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { TOURNAMENT_START_DATE } from '../lib/tournament'
 
-type PodiumParticipant = {
-  userId: string
-  username: string
-  seed: number
+type MatchPrediction = {
+  voterUserId: string
+  roundNumber: number
+  matchNumber: number
+  predictedWinnerUserId: string
 }
 
-type PodiumPrediction = {
-  voterUserId: string
-  firstUserId: string
-  secondUserId: string
-  thirdUserId: string
+type MatchVoteOption = {
+  userId: string
+  username: string
+}
+
+type MatchVoteCard = {
+  roundNumber: number
+  matchNumber: number
+  winnerUserId: string | null
+  player1: MatchVoteOption
+  player2: MatchVoteOption | null
+}
+
+type MatchVoteRound = {
+  roundNumber: number
+  matches: MatchVoteCard[]
 }
 
 type PodiumPoolTabProps = {
   isTournamentDate: boolean
   loading: boolean
   saving: boolean
-  currentUserId: string
-  participants: PodiumParticipant[]
-  predictions: PodiumPrediction[]
-  myPrediction: PodiumPrediction | null
-  onSave: (firstUserId: string, secondUserId: string, thirdUserId: string) => void
-  onRefresh: () => void
-}
-
-const isValidPodium = (firstUserId: string, secondUserId: string, thirdUserId: string): boolean => {
-  const picks = [firstUserId, secondUserId, thirdUserId]
-  return picks.every((pick) => pick.length > 0) && new Set(picks).size === 3
+  rounds: MatchVoteRound[]
+  predictions: MatchPrediction[]
+  myPredictionKeys: Set<string>
+  onVote: (roundNumber: number, matchNumber: number, predictedWinnerUserId: string) => void
 }
 
 export function PodiumPoolTab({
   isTournamentDate,
   loading,
   saving,
-  currentUserId,
-  participants,
+  rounds,
   predictions,
-  myPrediction,
-  onSave,
-  onRefresh,
+  myPredictionKeys,
+  onVote,
 }: PodiumPoolTabProps) {
-  const [firstUserId, setFirstUserId] = useState('')
-  const [secondUserId, setSecondUserId] = useState('')
-  const [thirdUserId, setThirdUserId] = useState('')
-
-  useEffect(() => {
-    if (!myPrediction) {
-      setFirstUserId('')
-      setSecondUserId('')
-      setThirdUserId('')
-      return
-    }
-
-    setFirstUserId(myPrediction.firstUserId)
-    setSecondUserId(myPrediction.secondUserId)
-    setThirdUserId(myPrediction.thirdUserId)
-  }, [myPrediction])
-
-  const usernameById = useMemo(() => {
-    return participants.reduce<Record<string, string>>((acc, participant) => {
-      acc[participant.userId] = participant.username
-      return acc
-    }, {})
-  }, [participants])
-
-  const availableParticipants = useMemo(() => {
-    return participants.filter((participant) => participant.userId !== currentUserId)
-  }, [participants, currentUserId])
-
-  const firstPlaceVotes = useMemo(() => {
-    const voteMap = new Map<string, number>()
+  const voteCountsByMatch = useMemo(() => {
+    const counts = new Map<string, Map<string, number>>()
 
     for (const prediction of predictions) {
-      voteMap.set(prediction.firstUserId, (voteMap.get(prediction.firstUserId) ?? 0) + 1)
+      const matchKey = `R${prediction.roundNumber}-M${prediction.matchNumber}`
+      const currentMatchCounts = counts.get(matchKey) ?? new Map<string, number>()
+      currentMatchCounts.set(
+        prediction.predictedWinnerUserId,
+        (currentMatchCounts.get(prediction.predictedWinnerUserId) ?? 0) + 1,
+      )
+      counts.set(matchKey, currentMatchCounts)
     }
 
-    return Array.from(voteMap.entries())
-      .map(([userId, votes]) => ({
-        userId,
-        username: usernameById[userId] ?? userId,
-        votes,
-      }))
-      .sort((a, b) => b.votes - a.votes)
-      .slice(0, 5)
-  }, [predictions, usernameById])
-
-  const canSave =
-    isValidPodium(firstUserId, secondUserId, thirdUserId) &&
-    firstUserId !== currentUserId &&
-    secondUserId !== currentUserId &&
-    thirdUserId !== currentUserId
+    return counts
+  }, [predictions])
 
   if (!isTournamentDate) {
     return (
@@ -111,133 +79,90 @@ export function PodiumPoolTab({
 
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-5 shadow-lg backdrop-blur sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
         <div>
           <h2 className="text-2xl font-black text-zinc-900">Porra del podio</h2>
           <p className="text-sm text-zinc-600">Elige podio final (1o, 2o y 3o). No puedes votarte a ti mismo.</p>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-        >
-          Actualizar
-        </button>
       </div>
 
       {loading && (
         <p className="mt-4 rounded-xl border border-dashed border-zinc-300 p-3 text-sm text-zinc-500">
-          Cargando participantes y porras...
+          Cargando rondas y votos...
         </p>
       )}
 
-      {!loading && availableParticipants.length < 3 && (
+      {!loading && rounds.length === 0 && (
         <p className="mt-4 rounded-xl border border-dashed border-zinc-300 p-3 text-sm text-zinc-500">
-          Todavia no hay suficientes participantes para completar una porra de podio.
+          Aun no hay combates disponibles para votar.
         </p>
       )}
 
-      {!loading && availableParticipants.length >= 3 && (
-        <div className="mt-4 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Tu porra</h3>
-            <div className="mt-3 space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-zinc-600">1o puesto</span>
-                <select
-                  value={firstUserId}
-                  onChange={(event) => setFirstUserId(event.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800"
-                >
-                  <option value="">Selecciona jugador</option>
-                  {availableParticipants
-                    .filter((participant) => participant.userId !== secondUserId && participant.userId !== thirdUserId)
-                    .map((participant) => (
-                      <option key={`first-${participant.userId}`} value={participant.userId}>
-                        #{participant.seed} {participant.username}
-                      </option>
-                    ))}
-                </select>
-              </label>
+      {!loading && rounds.length > 0 && (
+        <div className="mt-4 space-y-4">
+          {rounds.map((round) => (
+            <article key={`vote-round-${round.roundNumber}`} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Ronda {round.roundNumber}</h3>
+              <div className="mt-3 space-y-3">
+                {round.matches.map((match) => {
+                  const matchKey = `R${match.roundNumber}-M${match.matchNumber}`
+                  const alreadyVoted = myPredictionKeys.has(matchKey)
+                  const voteCounts = voteCountsByMatch.get(matchKey) ?? new Map<string, number>()
+                  const player2 = match.player2
+                  const isPlayable = Boolean(match.player2) && !match.winnerUserId
 
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-zinc-600">2o puesto</span>
-                <select
-                  value={secondUserId}
-                  onChange={(event) => setSecondUserId(event.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800"
-                >
-                  <option value="">Selecciona jugador</option>
-                  {availableParticipants
-                    .filter((participant) => participant.userId !== firstUserId && participant.userId !== thirdUserId)
-                    .map((participant) => (
-                      <option key={`second-${participant.userId}`} value={participant.userId}>
-                        #{participant.seed} {participant.username}
-                      </option>
-                    ))}
-                </select>
-              </label>
+                  return (
+                    <div key={matchKey} className="rounded-xl border border-zinc-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-zinc-800">
+                          Combate {match.matchNumber}: {match.player1.username} vs {match.player2?.username ?? 'BYE'}
+                        </p>
+                        {match.winnerUserId ? (
+                          <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">Finalizado</span>
+                        ) : (
+                          <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Abierto</span>
+                        )}
+                      </div>
 
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-zinc-600">3o puesto</span>
-                <select
-                  value={thirdUserId}
-                  onChange={(event) => setThirdUserId(event.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800"
-                >
-                  <option value="">Selecciona jugador</option>
-                  {availableParticipants
-                    .filter((participant) => participant.userId !== firstUserId && participant.userId !== secondUserId)
-                    .map((participant) => (
-                      <option key={`third-${participant.userId}`} value={participant.userId}>
-                        #{participant.seed} {participant.username}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </div>
+                      {!isPlayable ? (
+                        <p className="mt-2 text-xs text-zinc-500">Sin votacion disponible para este combate.</p>
+                      ) : alreadyVoted ? (
+                        <p className="mt-2 text-xs font-semibold text-emerald-700">Voto registrado. No se puede modificar.</p>
+                      ) : (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => onVote(match.roundNumber, match.matchNumber, match.player1.userId)}
+                            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Votar a {match.player1.username}
+                          </button>
+                          {player2 && (
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => onVote(match.roundNumber, match.matchNumber, player2.userId)}
+                              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Votar a {player2.username}
+                            </button>
+                          )}
+                        </div>
+                      )}
 
-            <button
-              type="button"
-              onClick={() => onSave(firstUserId, secondUserId, thirdUserId)}
-              disabled={!canSave || saving}
-              className="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? 'Guardando porra...' : myPrediction ? 'Actualizar porra' : 'Guardar porra'}
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Resumen</h3>
-              <p className="mt-2 text-sm text-zinc-700">Porras registradas: {predictions.length}</p>
-              {myPrediction ? (
-                <div className="mt-3 space-y-1 text-sm text-zinc-700">
-                  <p>1o: <span className="font-semibold">{usernameById[myPrediction.firstUserId] ?? myPrediction.firstUserId}</span></p>
-                  <p>2o: <span className="font-semibold">{usernameById[myPrediction.secondUserId] ?? myPrediction.secondUserId}</span></p>
-                  <p>3o: <span className="font-semibold">{usernameById[myPrediction.thirdUserId] ?? myPrediction.thirdUserId}</span></p>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-zinc-600">Aun no has enviado tu porra.</p>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Favoritos al 1o puesto</h3>
-              <div className="mt-2 space-y-2">
-                {firstPlaceVotes.length === 0 ? (
-                  <p className="text-sm text-zinc-600">Sin votos todavia.</p>
-                ) : (
-                  firstPlaceVotes.map((entry) => (
-                    <div key={`vote-${entry.userId}`} className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                      <p className="text-sm font-semibold text-zinc-800">{entry.username}</p>
-                      <span className="rounded-md bg-zinc-900 px-2 py-1 text-xs font-bold text-zinc-100">{entry.votes} votos</span>
+                      {player2 && (
+                        <div className="mt-3 grid gap-2 rounded-lg bg-zinc-50 p-2 text-xs text-zinc-700 sm:grid-cols-2">
+                          <p>{match.player1.username}: {voteCounts.get(match.player1.userId) ?? 0} votos</p>
+                          <p>{player2.username}: {voteCounts.get(player2.userId) ?? 0} votos</p>
+                        </div>
+                      )}
                     </div>
-                  ))
-                )}
+                  )
+                })}
               </div>
-            </div>
-          </div>
+            </article>
+          ))}
         </div>
       )}
     </section>

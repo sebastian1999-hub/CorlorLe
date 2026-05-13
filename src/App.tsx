@@ -26,8 +26,8 @@ import type {
   HSV,
   LeaderboardEntry,
   TournamentAttempt,
+  TournamentMatchPrediction,
   TournamentParticipant,
-  TournamentPodiumPrediction,
   TournamentRun,
 } from './types'
 
@@ -206,7 +206,7 @@ function App() {
   const [tournamentRun, setTournamentRun] = useState<TournamentRun | null>(null)
   const [tournamentParticipants, setTournamentParticipants] = useState<TournamentParticipant[]>([])
   const [tournamentAttempts, setTournamentAttempts] = useState<TournamentAttempt[]>([])
-  const [tournamentPodiumPredictions, setTournamentPodiumPredictions] = useState<TournamentPodiumPrediction[]>([])
+  const [tournamentMatchPredictions, setTournamentMatchPredictions] = useState<TournamentMatchPrediction[]>([])
   const [podiumSaving, setPodiumSaving] = useState(false)
   const [warmupUsesLeft, setWarmupUsesLeft] = useState(0)
   const [recordsClosestColor, setRecordsClosestColor] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
@@ -426,13 +426,17 @@ function App() {
     ? (tournamentParticipantByUserId[championUserId]?.username ?? null)
     : null
 
-  const myPodiumPrediction = useMemo(() => {
+  const myTournamentPredictionKeys = useMemo(() => {
     if (!session) {
-      return null
+      return new Set<string>()
     }
 
-    return tournamentPodiumPredictions.find((prediction) => prediction.voterUserId === session.user.id) ?? null
-  }, [session, tournamentPodiumPredictions])
+    return new Set(
+      tournamentMatchPredictions
+        .filter((prediction) => prediction.voterUserId === session.user.id)
+        .map((prediction) => `R${prediction.roundNumber}-M${prediction.matchNumber}`),
+    )
+  }, [session, tournamentMatchPredictions])
 
   const nextTournamentMatchId = useMemo(() => {
     if (!session) {
@@ -614,7 +618,7 @@ function App() {
       setTournamentRun(null)
       setTournamentParticipants([])
       setTournamentAttempts([])
-      setTournamentPodiumPredictions([])
+      setTournamentMatchPredictions([])
       return
     }
 
@@ -633,7 +637,7 @@ function App() {
       })
       setTournamentParticipants(demoParticipants)
       setTournamentAttempts(demoAttempts)
-      setTournamentPodiumPredictions([])
+      setTournamentMatchPredictions([])
       setTournamentLoading(false)
       return
     }
@@ -719,7 +723,7 @@ function App() {
       setTournamentRun(null)
       setTournamentParticipants([])
       setTournamentAttempts([])
-      setTournamentPodiumPredictions([])
+      setTournamentMatchPredictions([])
       setTournamentLoading(false)
       return
     }
@@ -740,8 +744,8 @@ function App() {
         .select('id,run_id,user_id,round_number,match_number,duel_index,target_color,user_color,error,time,score')
         .eq('run_id', runId),
       supabase
-        .from('tournament_podium_predictions')
-        .select('run_id,voter_user_id,first_user_id,second_user_id,third_user_id')
+        .from('tournament_match_predictions')
+        .select('run_id,voter_user_id,round_number,match_number,predicted_winner_user_id')
         .eq('run_id', runId),
     ])
 
@@ -795,68 +799,77 @@ function App() {
       })),
     )
 
-    setTournamentPodiumPredictions(
+    setTournamentMatchPredictions(
       (predictionsData ?? []).map((prediction) => ({
         runId: prediction.run_id,
         voterUserId: prediction.voter_user_id,
-        firstUserId: prediction.first_user_id,
-        secondUserId: prediction.second_user_id,
-        thirdUserId: prediction.third_user_id,
+        roundNumber: prediction.round_number,
+        matchNumber: prediction.match_number,
+        predictedWinnerUserId: prediction.predicted_winner_user_id,
       })),
     )
 
     setTournamentLoading(false)
   }, [demoTournamentMode, isTournamentDate, session])
 
-  const savePodiumPrediction = useCallback(async (
-    firstUserId: string,
-    secondUserId: string,
-    thirdUserId: string,
+  const saveMatchPrediction = useCallback(async (
+    roundNumber: number,
+    matchNumber: number,
+    predictedWinnerUserId: string,
   ) => {
     if (!session || !tournamentRun) {
       setErrorText('No se pudo guardar la porra. Intenta actualizar la pestaña.')
       return
     }
 
-    const picks = [firstUserId, secondUserId, thirdUserId]
-    if (picks.some((pick) => pick.length === 0) || new Set(picks).size !== 3) {
-      setErrorText('Debes seleccionar 3 jugadores distintos para la porra.')
+    const selectedRound = tournamentRoundsForUi.find((round) => round.roundNumber === roundNumber)
+    const selectedMatch = selectedRound?.matches.find((match) => match.matchNumber === matchNumber)
+
+    if (!selectedMatch || !selectedMatch.player2) {
+      setErrorText('Este combate no admite votacion.')
       return
     }
 
-    if (picks.includes(session.user.id)) {
-      setErrorText('No puedes votarte a ti mismo en la porra del podio.')
+    const isValidWinner =
+      predictedWinnerUserId === selectedMatch.player1.userId ||
+      predictedWinnerUserId === selectedMatch.player2.userId
+
+    if (!isValidWinner) {
+      setErrorText('El favorito elegido no coincide con el combate.')
+      return
+    }
+
+    if (myTournamentPredictionKeys.has(`R${roundNumber}-M${matchNumber}`)) {
+      setErrorText('Ya registraste tu voto para este combate y no se puede modificar.')
       return
     }
 
     setPodiumSaving(true)
     setErrorText(null)
 
-    const { error: upsertError } = await supabase
-      .from('tournament_podium_predictions')
-      .upsert(
-        {
-          run_id: tournamentRun.id,
-          voter_user_id: session.user.id,
-          first_user_id: firstUserId,
-          second_user_id: secondUserId,
-          third_user_id: thirdUserId,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'run_id,voter_user_id',
-        },
-      )
+    const { error: insertError } = await supabase
+      .from('tournament_match_predictions')
+      .insert({
+        run_id: tournamentRun.id,
+        voter_user_id: session.user.id,
+        round_number: roundNumber,
+        match_number: matchNumber,
+        predicted_winner_user_id: predictedWinnerUserId,
+      })
 
-    if (upsertError) {
-      setErrorText(upsertError.message ?? 'No se pudo guardar la porra.')
+    if (insertError) {
+      if (insertError.code === '23505') {
+        setErrorText('Ya registraste tu voto para este combate y no se puede modificar.')
+      } else {
+        setErrorText(insertError.message ?? 'No se pudo guardar tu voto del combate.')
+      }
       setPodiumSaving(false)
       return
     }
 
     await refreshTournamentData()
     setPodiumSaving(false)
-  }, [refreshTournamentData, session, tournamentRun])
+  }, [myTournamentPredictionKeys, refreshTournamentData, session, tournamentRoundsForUi, tournamentRun])
 
   const refreshDailyLeaderboard = useCallback(async (dateKey: string) => {
     if (!session) {
@@ -1850,15 +1863,11 @@ function App() {
                 isTournamentDate={isTournamentDate}
                 loading={tournamentLoading}
                 saving={podiumSaving}
-                currentUserId={session.user.id}
-                participants={tournamentParticipants}
-                predictions={tournamentPodiumPredictions}
-                myPrediction={myPodiumPrediction}
-                onSave={(firstUserId, secondUserId, thirdUserId) => {
-                  void savePodiumPrediction(firstUserId, secondUserId, thirdUserId)
-                }}
-                onRefresh={() => {
-                  void refreshTournamentData()
+                rounds={tournamentRoundsForUi}
+                predictions={tournamentMatchPredictions}
+                myPredictionKeys={myTournamentPredictionKeys}
+                onVote={(roundNumber, matchNumber, predictedWinnerUserId) => {
+                  void saveMatchPrediction(roundNumber, matchNumber, predictedWinnerUserId)
                 }}
               />
             )}
