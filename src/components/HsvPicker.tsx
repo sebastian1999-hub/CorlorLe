@@ -1,3 +1,4 @@
+import type { PointerEvent } from 'react'
 import type { HSV } from '../types'
 import { hsvToHex } from '../lib/colorMath'
 
@@ -17,12 +18,29 @@ const sliderConfig: Record<Channel, { min: number; max: number; label: string }>
 export function HsvPicker({ value, onChange }: HsvPickerProps) {
   const preview = hsvToHex(value)
 
+  const clampToChannel = (channel: Channel, nextValue: number): number => {
+    const { min, max } = sliderConfig[channel]
+    return Math.max(min, Math.min(max, nextValue))
+  }
+
   const handleChannel = (channel: Channel, rawValue: string) => {
     const parsed = Number.parseInt(rawValue, 10)
+    const safeValue = Number.isNaN(parsed) ? sliderConfig[channel].min : clampToChannel(channel, parsed)
+
     onChange({
       ...value,
-      [channel]: Number.isNaN(parsed) ? 0 : parsed,
+      [channel]: safeValue,
     })
+  }
+
+  const capturePointer = (event: PointerEvent<HTMLInputElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const releasePointer = (event: PointerEvent<HTMLInputElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }
 
   return (
@@ -48,6 +66,9 @@ export function HsvPicker({ value, onChange }: HsvPickerProps) {
             max={sliderConfig[channel].max}
             value={value[channel]}
             onChange={(event) => handleChannel(channel, event.target.value)}
+            onPointerDown={capturePointer}
+            onPointerUp={releasePointer}
+            onPointerCancel={releasePointer}
             className="w-full accent-amber-500"
           />
         </label>
