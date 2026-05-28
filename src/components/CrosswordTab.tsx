@@ -90,7 +90,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       .select('user_id,seconds')
       .eq('date', dateKey)
       .order('seconds', { ascending: true })
-      .limit(3)
 
     if (error) {
       const relationMissing = error.message.toLowerCase().includes('crossword_attempts')
@@ -457,7 +456,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     return !getCellDisplay(row, col)
   }
 
-  const podiumDisplay = [podium[0], podium[1], podium[2]]
+  const podiumDisplay = podium
   const rankBadgeByIndex = [
     { src: goldMedal, alt: 'Medalla de oro' },
     { src: silverMedal, alt: 'Medalla de plata' },
@@ -518,16 +517,22 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
             return (
               <article
                 key={`crossword-podium-${rank}`}
-                className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2 shadow-sm"
+                className="flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 shadow-sm"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <img src={badge.src} alt={badge.alt} className="h-8 w-8 object-contain sm:h-10 sm:w-10" />
-                  <p className="truncate text-sm font-black text-zinc-900 sm:text-base">
+                  {badge ? (
+                    <img src={badge.src} alt={badge.alt} className="h-8 w-8 object-contain sm:h-10 sm:w-10" />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-600 text-xs font-black text-zinc-300 sm:h-10 sm:w-10 sm:text-sm">
+                      {rank}
+                    </div>
+                  )}
+                  <p className="truncate text-sm font-black text-zinc-100 sm:text-base">
                     #{rank} {entry ? entry.username : 'Sin tiempo'}
                   </p>
                 </div>
 
-                <p className="text-sm font-black text-emerald-700 sm:text-base">
+                <p className="text-sm font-black text-emerald-300 sm:text-base">
                   {entry ? formatSeconds(entry.seconds) : '--:--'}
                 </p>
               </article>
