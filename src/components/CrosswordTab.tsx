@@ -457,32 +457,11 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     return !getCellDisplay(row, col)
   }
 
-  const podiumDisplay = [podium[1], podium[0], podium[2]]
-  const podiumLayout = [
-    {
-      rank: 2,
-      badgeSrc: silverMedal,
-      badgeAlt: 'Medalla de plata',
-      entry: podiumDisplay[0],
-      trophyClass: 'h-10 w-10 sm:h-12 sm:w-12',
-      baseHeightClass: 'h-14',
-    },
-    {
-      rank: 1,
-      badgeSrc: goldMedal,
-      badgeAlt: 'Medalla de oro',
-      entry: podiumDisplay[1],
-      trophyClass: 'h-12 w-12 sm:h-14 sm:w-14',
-      baseHeightClass: 'h-20',
-    },
-    {
-      rank: 3,
-      badgeSrc: bronzeMedal,
-      badgeAlt: 'Medalla de bronce',
-      entry: podiumDisplay[2],
-      trophyClass: 'h-9 w-9 sm:h-11 sm:w-11',
-      baseHeightClass: 'h-10',
-    },
+  const podiumDisplay = [podium[0], podium[1], podium[2]]
+  const rankBadgeByIndex = [
+    { src: goldMedal, alt: 'Medalla de oro' },
+    { src: silverMedal, alt: 'Medalla de plata' },
+    { src: bronzeMedal, alt: 'Medalla de bronce' },
   ]
 
   const handleCheck = () => {
@@ -531,26 +510,26 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
           <p className="mb-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">{statusText}</p>
         )}
 
-        <div className="grid grid-cols-3 items-end gap-2 sm:gap-3">
-          {podiumLayout.map((slot) => {
+        <div className="space-y-2">
+          {podiumDisplay.map((entry, index) => {
+            const rank = index + 1
+            const badge = rankBadgeByIndex[index]
+
             return (
               <article
-                key={`crossword-podium-${slot.rank}`}
-                className={`rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm sm:p-3 ${slot.rank === 1 ? '-translate-y-2 sm:-translate-y-3' : ''}`}
+                key={`crossword-podium-${rank}`}
+                className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2 shadow-sm"
               >
-                <div className="mb-2 flex items-center justify-end">
-                  <img src={slot.badgeSrc} alt={slot.badgeAlt} className={`${slot.trophyClass} object-contain`} />
+                <div className="flex min-w-0 items-center gap-3">
+                  <img src={badge.src} alt={badge.alt} className="h-8 w-8 object-contain sm:h-10 sm:w-10" />
+                  <p className="truncate text-sm font-black text-zinc-900 sm:text-base">
+                    #{rank} {entry ? entry.username : 'Sin tiempo'}
+                  </p>
                 </div>
 
-                {slot.entry ? (
-                  <>
-                    <p className="truncate text-xs font-black text-zinc-900 sm:text-base">#{slot.rank} {slot.entry.username}</p>
-                    <p className="mt-2 text-base font-black text-emerald-700 sm:text-lg">{formatSeconds(slot.entry.seconds)}</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-zinc-500">#{slot.rank} Sin tiempo</p>
-                )}
-                <div className={`mt-3 rounded-xl bg-zinc-100 ${slot.baseHeightClass}`} />
+                <p className="text-sm font-black text-emerald-700 sm:text-base">
+                  {entry ? formatSeconds(entry.seconds) : '--:--'}
+                </p>
               </article>
             )
           })}
