@@ -392,11 +392,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     if (currentSelectedLetter === '__CLEAR__') {
       return
     }
-
-    if (!hasSolvedToday && !schemaMissing) {
-      selectedLetterRef.current = null
-      setSelectedLetter(null)
-    }
   }
 
   const onCellPointerDown = (event: React.PointerEvent<HTMLButtonElement>, row: number, col: number) => {
@@ -415,18 +410,18 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       <button
         key={letter}
         type="button"
-        draggable={!hasSolvedToday && !schemaMissing}
+        draggable={false}
         onDragStart={(event) => {
           startDragLetter(letter)
           event.dataTransfer.setData('text/plain', letter)
         }}
         onDragEnd={endDragLetter}
         onPointerDown={() => selectLetter(letter)}
-        onClick={() => {
-          if (hasSolvedToday || schemaMissing || isAnimatingCompletion) {
-            return
+        onClick={(event) => {
+          // Keyboard activation triggers click with detail=0.
+          if (event.detail === 0) {
+            selectLetter(letter)
           }
-          selectLetter(letter)
         }}
         disabled={hasSolvedToday || schemaMissing || isAnimatingCompletion}
         className={`flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-black shadow-sm transition sm:h-11 sm:w-11 ${
@@ -443,14 +438,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   const carouselTiles = useMemo(() => {
     return [...letterPool, '__CLEAR__']
   }, [letterPool])
-  
-  const mobileTileSplit = useMemo(() => {
-    const midpoint = Math.ceil(carouselTiles.length / 2)
-    return {
-      top: carouselTiles.slice(0, midpoint),
-      bottom: carouselTiles.slice(midpoint),
-    }
-  }, [carouselTiles])
 
   const getCellDisplay = (row: number, col: number): string => {
     const value = cells[row][col]
@@ -585,25 +572,12 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
-          <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-2 sm:hidden">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Letras (arrastra el carrusel y toca para seleccionar)</p>
-            <div className="overflow-x-auto">
-              <div className="flex w-max snap-x snap-mandatory gap-2 px-1 pb-1">
-                {mobileTileSplit.top.map((letter, index) => (
-                  <div key={`tile-top-${letter}-${index}`} className="snap-center">
-                    {renderTile(letter)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden rounded-xl border border-dashed border-zinc-200 bg-white p-2 sm:block">
+          <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-2">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Letras (arrastra el carrusel y toca para seleccionar)</p>
             <div className="overflow-x-auto">
               <div className="flex w-max snap-x snap-mandatory gap-2 px-1 pb-1">
                 {carouselTiles.map((letter, index) => (
-                  <div key={`tile-desktop-${letter}-${index}`} className="snap-center">
+                  <div key={`tile-${letter}-${index}`} className="snap-center">
                     {renderTile(letter)}
                   </div>
                 ))}
@@ -633,7 +607,11 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                       data-row={rowIndex}
                       data-col={colIndex}
                       onPointerDown={(event) => onCellPointerDown(event, rowIndex, colIndex)}
-                      onClick={() => onCellTap(rowIndex, colIndex)}
+                      onClick={(event) => {
+                        if (event.detail === 0) {
+                          onCellTap(rowIndex, colIndex)
+                        }
+                      }}
                       onDragOver={(event) => {
                         if (hasSolvedToday || schemaMissing || isAnimatingCompletion) {
                           return
@@ -676,18 +654,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                   )
                 }),
               )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-2 sm:hidden">
-            <div className="overflow-x-auto">
-              <div className="flex w-max snap-x snap-mandatory gap-2 px-1 pb-1">
-                {mobileTileSplit.bottom.map((letter, index) => (
-                  <div key={`tile-bottom-${letter}-${index}`} className="snap-center">
-                    {renderTile(letter)}
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
