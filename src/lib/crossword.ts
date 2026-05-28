@@ -561,7 +561,7 @@ function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
         clueByAnswer.set(entry.answer, entry.clue)
       }
 
-      let placed: LayoutResultEntry[] = []
+      let placed: LayoutResultEntry[]
       try {
         const crossword = withSeededMathRandom(seed + count * 997 + attempt * 37, () =>
           withSilencedConsole(() =>
