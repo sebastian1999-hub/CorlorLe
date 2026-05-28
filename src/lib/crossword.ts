@@ -1,4 +1,5 @@
 import { generateCrossword } from 'crossword-generator'
+import { WIKTIONARY_ES_WORDS } from './wiktionaryWords'
 
 export type CrosswordDirection = 'across' | 'down'
 
@@ -365,6 +366,8 @@ const WORDS: WordEntry[] = [
   { word: 'MOVILIDAD', clue: 'Capacidad de uso en dispositivos moviles' },
 ]
 
+const DICTIONARY_WORDS: WordEntry[] = [...WORDS, ...WIKTIONARY_ES_WORDS]
+
 function hashDate(dateKey: string): number {
   let hash = 2166136261
   for (let i = 0; i < dateKey.length; i += 1) {
@@ -531,7 +534,7 @@ function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
   const rng = createRng(seed)
   const startTs = Date.now()
 
-  const cleanedWords = WORDS.map((entry) => ({
+  const cleanedWords = DICTIONARY_WORDS.map((entry) => ({
     answer: normalizeAnswer(entry.word),
     clue: entry.clue,
   })).filter((entry) => entry.answer.length >= 3 && entry.answer.length <= GRID_SIZE)
