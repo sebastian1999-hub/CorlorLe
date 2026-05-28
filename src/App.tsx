@@ -2054,7 +2054,7 @@ function App() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 rounded-2xl bg-zinc-950 p-4 text-zinc-100 md:grid-cols-4">
+            <div className="mt-6 grid gap-3 rounded-2xl bg-zinc-950 p-4 text-zinc-100 md:grid-cols-3">
               <p>
                 <span className="block text-xs text-zinc-400">Error</span>
                 <span className="text-xl font-bold">{result.error.toFixed(2)}%</span>
@@ -2062,10 +2062,6 @@ function App() {
               <p>
                 <span className="block text-xs text-zinc-400">Tiempo</span>
                 <span className="text-xl font-bold">{result.seconds.toFixed(2)}s</span>
-              </p>
-              <p>
-                <span className="block text-xs text-zinc-400">Dificultad</span>
-                <span className="text-xl font-bold uppercase">{result.difficulty}</span>
               </p>
               <p>
                 <span className="block text-xs text-zinc-400">Score</span>
