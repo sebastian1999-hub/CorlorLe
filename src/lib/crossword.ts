@@ -73,8 +73,8 @@ function isValidLayoutEntry(entry: LayoutResultEntry): boolean {
   return /^[A-Z]+$/.test(entry.answer)
 }
 
-const GRID_SIZE = 9
-const MAX_GENERATION_MS = 120
+const GRID_SIZE = 11
+const MAX_GENERATION_MS = 1500
 
 const puzzleCache = new Map<string, CrosswordPuzzle>()
 
@@ -102,6 +102,38 @@ const WORDS: WordEntry[] = [
   { word: 'ORO', clue: 'Metal precioso de color amarillo' },
   { word: 'SAL', clue: 'Condimento comun de cocina' },
   { word: 'UVA', clue: 'Fruta usada para hacer vino' },
+  { word: 'CAL', clue: 'Oxido de calcio usado en construccion' },
+  { word: 'GAS', clue: 'Estado de la materia sin forma fija' },
+  { word: 'PAZ', clue: 'Ausencia de conflicto' },
+  { word: 'PEZ', clue: 'Animal que vive en el agua' },
+  { word: 'SUR', clue: 'Punto cardinal opuesto al norte' },
+  { word: 'SED', clue: 'Necesidad de beber agua' },
+  { word: 'TOS', clue: 'Expulsion brusca de aire por los pulmones' },
+  { word: 'UNO', clue: 'Numero entero anterior a dos' },
+  { word: 'VER', clue: 'Percibir con los ojos' },
+  { word: 'MIL', clue: 'Diez veces cien' },
+  { word: 'MAL', clue: 'Lo contrario de bien' },
+  { word: 'ERA', clue: 'Periodo largo de tiempo historico' },
+  { word: 'ESO', clue: 'Pronombre demostrativo neutro' },
+  { word: 'OCA', clue: 'Ave acuatica de cuello largo' },
+  { word: 'RAS', clue: 'Al nivel exacto de la superficie' },
+  { word: 'SER', clue: 'Existir o tener una cualidad' },
+  { word: 'HAZ', clue: 'Conjunto de rayos de luz' },
+  { word: 'RAZ', clue: 'Raiz o principio de algo' },
+  { word: 'TEN', clue: 'Imperativo de tener' },
+  { word: 'TAL', clue: 'De esa misma clase o condicion' },
+  { word: 'VAN', clue: 'Se desplazan hacia un lugar' },
+  { word: 'SON', clue: 'Tercera persona del plural de ser' },
+  { word: 'DAN', clue: 'Entregan o proporcionan algo' },
+  { word: 'LEA', clue: 'Que interprete un texto escrito' },
+  { word: 'RES', clue: 'Animal bovino' },
+  { word: 'TES', clue: 'Infusiones calientes de hierbas' },
+  { word: 'CAN', clue: 'Perro, animal domestico' },
+  { word: 'LAS', clue: 'Articulo determinado femenino plural' },
+  { word: 'LOS', clue: 'Articulo determinado masculino plural' },
+  { word: 'MAS', clue: 'En mayor cantidad o grado' },
+  { word: 'EJE', clue: 'Linea o barra central de rotacion' },
+  { word: 'ALO', clue: 'Saludo al contestar el telefono' },
 
   // 4 letters
   { word: 'LUNA', clue: 'Satelite natural de la Tierra' },
@@ -118,6 +150,67 @@ const WORDS: WordEntry[] = [
   { word: 'NODO', clue: 'Punto de conexion en una red' },
   { word: 'MENU', clue: 'Lista de opciones en pantalla' },
   { word: 'MODO', clue: 'Configuracion de funcionamiento' },
+  { word: 'AGUA', clue: 'Liquido esencial para la vida' },
+  { word: 'AMOR', clue: 'Sentimiento de afecto profundo' },
+  { word: 'CASA', clue: 'Edificio donde vive una familia' },
+  { word: 'CENA', clue: 'Comida que se toma por la noche' },
+  { word: 'COLA', clue: 'Fila de personas esperando' },
+  { word: 'COPA', clue: 'Trofeo de forma redondeada' },
+  { word: 'FAMA', clue: 'Reconocimiento publico de una persona' },
+  { word: 'GATO', clue: 'Animal domestico que ronronea' },
+  { word: 'HORA', clue: 'Unidad de tiempo de sesenta minutos' },
+  { word: 'ISLA', clue: 'Tierra rodeada de agua por todos lados' },
+  { word: 'LAGO', clue: 'Masa de agua rodeada de tierra' },
+  { word: 'LANA', clue: 'Fibra que viene del pelo de la oveja' },
+  { word: 'LATA', clue: 'Envase metalico de conserva' },
+  { word: 'MANO', clue: 'Extremidad del brazo con cinco dedos' },
+  { word: 'MASA', clue: 'Mezcla espesa de harina y agua' },
+  { word: 'NOTA', clue: 'Calificacion o apunte breve' },
+  { word: 'ONDA', clue: 'Movimiento que se propaga en un medio' },
+  { word: 'PATO', clue: 'Ave acuatica con pico plano' },
+  { word: 'PELO', clue: 'Fibra que cubre el cuerpo' },
+  { word: 'PENA', clue: 'Tristeza o castigo' },
+  { word: 'PESO', clue: 'Fuerza de atraccion gravitatoria' },
+  { word: 'POLO', clue: 'Extremo del eje de la Tierra' },
+  { word: 'ROSA', clue: 'Flor con espinas y color tipicamente rosado' },
+  { word: 'SEDA', clue: 'Tela fina y suave de origen animal' },
+  { word: 'SENO', clue: 'Cavidad o espacio interior' },
+  { word: 'TAPA', clue: 'Cubierta que cierra algo' },
+  { word: 'TELA', clue: 'Material tejido de fibras' },
+  { word: 'TORO', clue: 'Bovino macho de gran tamanyo' },
+  { word: 'TUBO', clue: 'Cilindro hueco por donde pasa fluido' },
+  { word: 'VACA', clue: 'Animal bovino hembra que da leche' },
+  { word: 'VENA', clue: 'Vaso sanguineo por donde circula la sangre' },
+  { word: 'VIDA', clue: 'Capacidad de existir y desarrollarse' },
+  { word: 'VINO', clue: 'Bebida fermentada de la uva' },
+  { word: 'URNA', clue: 'Recipiente para depositar votos' },
+  { word: 'CAJA', clue: 'Recipiente con tapa para guardar cosas' },
+  { word: 'CARA', clue: 'Parte delantera de la cabeza' },
+  { word: 'CANA', clue: 'Pelo que ha perdido su pigmento' },
+  { word: 'DUDA', clue: 'Incertidumbre sobre algo' },
+  { word: 'FOCA', clue: 'Mamifero marino de aletas' },
+  { word: 'GANA', clue: 'Deseo o motivacion para hacer algo' },
+  { word: 'HILO', clue: 'Fibra larga y delgada para coser' },
+  { word: 'LIGA', clue: 'Competicion deportiva organizada' },
+  { word: 'LIMA', clue: 'Herramienta para desgastar o fruto citrico' },
+  { word: 'LOMA', clue: 'Elevacion suave del terreno' },
+  { word: 'LORO', clue: 'Ave que puede imitar el habla humana' },
+  { word: 'LOBO', clue: 'Mamifero salvaje de la familia de los canidos' },
+  { word: 'MIEL', clue: 'Sustancia dulce producida por las abejas' },
+  { word: 'MONO', clue: 'Primate que trepa por los arboles' },
+  { word: 'MOTO', clue: 'Vehiculo de dos ruedas con motor' },
+  { word: 'RANA', clue: 'Anfibio verde que vive cerca del agua' },
+  { word: 'RAYA', clue: 'Linea trazada sobre una superficie' },
+  { word: 'RIMA', clue: 'Semejanza de sonido al final de versos' },
+  { word: 'ROCA', clue: 'Masa solida de minerales' },
+  { word: 'SANA', clue: 'En buen estado de salud' },
+  { word: 'TIRA', clue: 'Franja larga y estrecha de material' },
+  { word: 'TOGA', clue: 'Vestidura formal que usan jueces y graduados' },
+  { word: 'TUNA', clue: 'Grupo musical universitario tradicional' },
+  { word: 'VALE', clue: 'Documento que da derecho a algo' },
+  { word: 'LISO', clue: 'Sin rugosidades ni relieve' },
+  { word: 'FINO', clue: 'De poco grosor o gran calidad' },
+  { word: 'DADO', clue: 'Cubo numerado para juegos de azar' },
   { word: 'CITA', clue: 'Encuentro acordado entre personas' },
   { word: 'TEMA', clue: 'Asunto principal' },
   { word: 'META', clue: 'Objetivo final' },
@@ -425,10 +518,10 @@ function getLayoutStats(entries: LayoutResultEntry[]): {
 function scoreLayout(entries: LayoutResultEntry[]): number {
   const stats = getLayoutStats(entries)
   return (
-    stats.placedCount * 40 +
-    stats.filledCells * 5 +
-    stats.intersections * 35 +
-    stats.density * 180 -
+    stats.placedCount * 50 +
+    stats.filledCells * 6 +
+    stats.intersections * 60 +
+    stats.density * 200 -
     stats.boundsArea
   )
 }
@@ -454,8 +547,8 @@ function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
   let bestCandidate: LayoutResultEntry[] | null = null
   let bestScore = Number.NEGATIVE_INFINITY
 
-  for (let count = Math.min(24, dictionary.length); count >= 10; count -= 1) {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+  for (let count = Math.min(32, dictionary.length); count >= 10; count -= 1) {
+    for (let attempt = 0; attempt < 25; attempt += 1) {
       if (Date.now() - startTs > MAX_GENERATION_MS) {
         return bestCandidate
       }
@@ -475,9 +568,9 @@ function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
             generateCrossword(
               selected.map((entry) => entry.answer),
               {
-                wordCount: Math.min(count, 16),
+                wordCount: Math.min(count, 24),
                 maxGridSize: GRID_SIZE,
-                maxAttempts: 90,
+                maxAttempts: 250,
                 validationLevel: 'normal',
                 minWordLength: 3,
                 maxWordLength: GRID_SIZE,
@@ -512,7 +605,7 @@ function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
         continue
       }
 
-      if (stats.filledCells < 32) {
+      if (stats.filledCells < 36) {
         continue
       }
 
@@ -523,8 +616,8 @@ function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
           bestScore = score
           bestCandidate = placed
 
-          // Early exit once we have a strong layout to avoid freezing navigation.
-          if (stats.placedCount >= 10 && stats.acrossCount >= 5 && stats.downCount >= 4 && stats.filledCells >= 36) {
+          // Early exit only when we have a very dense layout.
+          if (stats.placedCount >= 16 && stats.acrossCount >= 7 && stats.downCount >= 6 && stats.intersections >= 18 && stats.filledCells >= 60) {
             return bestCandidate
           }
         }
