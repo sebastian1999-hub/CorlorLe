@@ -528,7 +528,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                     </div>
                   )}
                   <p className="truncate text-sm font-black text-zinc-100 sm:text-base">
-                    #{rank} {entry ? entry.username : 'Sin tiempo'}
+                    {entry ? entry.username : 'Sin tiempo'}
                   </p>
                 </div>
 

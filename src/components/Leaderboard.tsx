@@ -48,7 +48,7 @@ export function Leaderboard({ entries, title = 'Clasificacion general', showColo
                   )}
 
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-zinc-100 sm:text-base">#{rank} {entry.username}</p>
+                    <p className="truncate text-sm font-black text-zinc-100 sm:text-base">{entry.username}</p>
                     <p className="text-xs text-zinc-300">
                       {entry.gamesPlayed} partida{entry.gamesPlayed !== 1 ? 's' : ''}
                       {typeof entry.accuracyPercent === 'number' && ` · ${entry.accuracyPercent.toFixed(1)}% precision`}
