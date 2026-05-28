@@ -191,6 +191,7 @@ function App() {
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
   const [activeGameTab, setActiveGameTab] = useState<GameTab>('dailyColor')
   const [crosswordView, setCrosswordView] = useState<'home' | 'play'>('home')
+  const [hasCompletedCrosswordToday, setHasCompletedCrosswordToday] = useState(false)
   const [viewDate, setViewDate] = useState<string>(() => todayKey())
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
@@ -987,7 +988,11 @@ function App() {
     setLoadingData(true)
     setErrorText(null)
 
-    const [{ data: ownAttempt, error: ownError }, { data: allAttemptsData, error: leaderboardError }] =
+    const [
+      { data: ownAttempt, error: ownError },
+      { data: allAttemptsData, error: leaderboardError },
+      { data: ownCrosswordAttempt, error: ownCrosswordError },
+    ] =
       await Promise.all([
         supabase
           .from('attempts')
@@ -998,6 +1003,12 @@ function App() {
         supabase
           .from('attempts')
           .select('user_id,score,date'),
+        supabase
+          .from('crossword_attempts')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('date', date)
+          .maybeSingle(),
       ])
 
     if (ownError || leaderboardError) {
@@ -1007,6 +1018,14 @@ function App() {
     }
 
     setHasPlayedToday(Boolean(ownAttempt))
+    if (ownCrosswordError) {
+      const relationMissing = ownCrosswordError.message.toLowerCase().includes('crossword_attempts')
+      if (relationMissing) {
+        setHasCompletedCrosswordToday(false)
+      }
+    } else {
+      setHasCompletedCrosswordToday(Boolean(ownCrosswordAttempt))
+    }
 
     const attempts = allAttemptsData ?? []
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
@@ -1248,6 +1267,7 @@ function App() {
         setStage('home')
         setResult(null)
         setHasPlayedToday(false)
+        setHasCompletedCrosswordToday(false)
         setIsPracticeMode(false)
         setActiveTournamentMatchId(null)
         setActiveTournamentRoundNumber(null)
@@ -1751,6 +1771,9 @@ function App() {
 
   const handlePrimaryAction = () => {
     if (activeGameTab === 'crossword') {
+      if (hasCompletedCrosswordToday) {
+        return
+      }
       setCrosswordView('play')
       return
     }
@@ -1798,11 +1821,15 @@ function App() {
                         loadingData ||
                         isBeforeFirstPlayableViewDate
                       )
-                    : activeGameTab !== 'crossword'}
+                    : activeGameTab === 'crossword'
+                      ? hasCompletedCrosswordToday
+                      : true}
                   className="rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {activeGameTab === 'crossword'
-                    ? (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
+                    ? hasCompletedCrosswordToday
+                      ? 'Crucigrama completado'
+                      : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
                     : !isColorGameActive
                       ? 'Disponible pronto'
                       : isBeforeFirstPlayableViewDate
