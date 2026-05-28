@@ -60,6 +60,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   const [completionStep, setCompletionStep] = useState(0)
   const startedAt = useRef<number | null>(null)
   const completionStarted = useRef(false)
+  const selectedLetterRef = useRef<string | null>(null)
 
   const answerCoords = useMemo(() => {
     const coords: Array<{ row: number; col: number }> = []
@@ -162,6 +163,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       setIsAnimatingCompletion(false)
       setCompletionStep(0)
       setSelectedLetter(null)
+      selectedLetterRef.current = null
       setDraggingLetter(null)
       setCells(puzzle.grid.map((row: CrosswordCell[]) => row.map((cell: CrosswordCell) => (cell.blocked ? '#' : ''))))
       setFeedback(puzzle.grid.map((row: CrosswordCell[]) => row.map((cell: CrosswordCell) => (cell.blocked ? 'none' : 'none'))))
@@ -265,6 +267,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     completionStarted.current = true
     setHasSolvedToday(true)
     setSelectedLetter(null)
+    selectedLetterRef.current = null
     setDraggingLetter(null)
     setFeedback((previous) =>
       previous.map((line) => line.map((value) => (value === 'wrong' ? 'none' : value))),
@@ -360,7 +363,18 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       return
     }
     setDraggingLetter(letter)
+    selectedLetterRef.current = letter
     setSelectedLetter(letter)
+  }
+
+  const selectLetter = (letter: string) => {
+    if (hasSolvedToday || schemaMissing || isAnimatingCompletion) {
+      return
+    }
+
+    const nextLetter = selectedLetterRef.current === letter ? null : letter
+    selectedLetterRef.current = nextLetter
+    setSelectedLetter(nextLetter)
   }
 
   const endDragLetter = () => {
@@ -368,19 +382,30 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   }
 
   const onCellTap = (row: number, col: number) => {
-    if (!selectedLetter) {
+    const currentSelectedLetter = selectedLetterRef.current
+    if (!currentSelectedLetter) {
       return
     }
 
-    handleDropLetter(row, col, selectedLetter)
+    handleDropLetter(row, col, currentSelectedLetter)
 
-    if (selectedLetter === '__CLEAR__') {
+    if (currentSelectedLetter === '__CLEAR__') {
       return
     }
 
     if (!hasSolvedToday && !schemaMissing) {
+      selectedLetterRef.current = null
       setSelectedLetter(null)
     }
+  }
+
+  const onCellPointerDown = (event: React.PointerEvent<HTMLButtonElement>, row: number, col: number) => {
+    if (!selectedLetter || hasSolvedToday || schemaMissing || isAnimatingCompletion) {
+      return
+    }
+
+    event.preventDefault()
+    onCellTap(row, col)
   }
 
   const renderTile = (letter: string) => {
@@ -396,11 +421,12 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
           event.dataTransfer.setData('text/plain', letter)
         }}
         onDragEnd={endDragLetter}
+        onPointerDown={() => selectLetter(letter)}
         onClick={() => {
           if (hasSolvedToday || schemaMissing || isAnimatingCompletion) {
             return
           }
-          setSelectedLetter((previous) => (previous === letter ? null : letter))
+          selectLetter(letter)
         }}
         disabled={hasSolvedToday || schemaMissing || isAnimatingCompletion}
         className={`flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-black shadow-sm transition sm:h-11 sm:w-11 ${
@@ -606,6 +632,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                       data-crossword-cell="true"
                       data-row={rowIndex}
                       data-col={colIndex}
+                      onPointerDown={(event) => onCellPointerDown(event, rowIndex, colIndex)}
                       onClick={() => onCellTap(rowIndex, colIndex)}
                       onDragOver={(event) => {
                         if (hasSolvedToday || schemaMissing || isAnimatingCompletion) {
