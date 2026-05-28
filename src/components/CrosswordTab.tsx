@@ -660,7 +660,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
             <ul className="mt-2 max-h-52 space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
               {puzzle.cluesAcross.map((clue: CrosswordClue) => (
                 <li key={`A-${clue.number}-${clue.row}-${clue.col}-${clue.answer}`}>
-                  <span className="font-bold">{clue.number}.</span> {clue.clue} ({clue.answer})
+                  <span className="font-bold">{clue.number}.</span> {clue.clue}
                 </li>
               ))}
             </ul>
@@ -672,7 +672,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
               <ul className="mt-2 max-h-52 space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
                 {puzzle.cluesDown.map((clue: CrosswordClue) => (
                   <li key={`D-${clue.number}-${clue.row}-${clue.col}-${clue.answer}`}>
-                    <span className="font-bold">{clue.number}.</span> {clue.clue} ({clue.answer})
+                    <span className="font-bold">{clue.number}.</span> {clue.clue}
                   </li>
                 ))}
               </ul>

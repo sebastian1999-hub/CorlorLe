@@ -1957,12 +1957,6 @@ function App() {
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
           <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-6 shadow-lg backdrop-blur sm:p-8">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Proximamente</p>
-            <h2 className="mt-2 text-2xl font-black text-zinc-900 sm:text-3xl">
-              Adivina el personaje de animacion
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm text-zinc-600 sm:text-base">
-              Esta pestana queda preparada para la siguiente fase. La base ya esta lista y el foco actual sigue siendo el reto diario de color y el crucigrama.
-            </p>
           </section>
         )}
 
