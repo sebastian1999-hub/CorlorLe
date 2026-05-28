@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { buildDailyCrossword, type CrosswordCell, type CrosswordClue } from '../lib/crossword.ts'
 import { supabase } from '../lib/supabase'
+import goldMedal from '../assets/oro.png'
+import silverMedal from '../assets/copa-de-plata.png'
+import bronzeMedal from '../assets/copa-de-bronce.png'
 
 type CrosswordTabProps = {
   session: Session
@@ -455,6 +458,32 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   }
 
   const podiumDisplay = [podium[1], podium[0], podium[2]]
+  const podiumLayout = [
+    {
+      rank: 2,
+      badgeSrc: silverMedal,
+      badgeAlt: 'Medalla de plata',
+      entry: podiumDisplay[0],
+      trophyClass: 'h-10 w-10 sm:h-12 sm:w-12',
+      baseHeightClass: 'h-14',
+    },
+    {
+      rank: 1,
+      badgeSrc: goldMedal,
+      badgeAlt: 'Medalla de oro',
+      entry: podiumDisplay[1],
+      trophyClass: 'h-12 w-12 sm:h-14 sm:w-14',
+      baseHeightClass: 'h-20',
+    },
+    {
+      rank: 3,
+      badgeSrc: bronzeMedal,
+      badgeAlt: 'Medalla de bronce',
+      entry: podiumDisplay[2],
+      trophyClass: 'h-9 w-9 sm:h-11 sm:w-11',
+      baseHeightClass: 'h-10',
+    },
+  ]
 
   const handleCheck = () => {
     if (hasSolvedToday || schemaMissing || isAnimatingCompletion || checkUses >= MAX_CHECKS) {
@@ -503,22 +532,25 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
         )}
 
         <div className="grid grid-cols-3 items-end gap-2 sm:gap-3">
-          {podiumDisplay.map((entry, index) => {
-            const rank = index === 0 ? 2 : index === 1 ? 1 : 3
+          {podiumLayout.map((slot) => {
             return (
               <article
-                key={`crossword-podium-${rank}`}
-                className={`rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm sm:p-3 ${rank === 1 ? '-translate-y-2 sm:-translate-y-3' : ''}`}
+                key={`crossword-podium-${slot.rank}`}
+                className={`rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm sm:p-3 ${slot.rank === 1 ? '-translate-y-2 sm:-translate-y-3' : ''}`}
               >
-                {entry ? (
+                <div className="mb-2 flex items-center justify-end">
+                  <img src={slot.badgeSrc} alt={slot.badgeAlt} className={`${slot.trophyClass} object-contain`} />
+                </div>
+
+                {slot.entry ? (
                   <>
-                    <p className="truncate text-xs font-black text-zinc-900 sm:text-base">#{rank} {entry.username}</p>
-                    <p className="mt-2 text-base font-black text-emerald-700 sm:text-lg">{formatSeconds(entry.seconds)}</p>
+                    <p className="truncate text-xs font-black text-zinc-900 sm:text-base">#{slot.rank} {slot.entry.username}</p>
+                    <p className="mt-2 text-base font-black text-emerald-700 sm:text-lg">{formatSeconds(slot.entry.seconds)}</p>
                   </>
                 ) : (
-                  <p className="text-sm text-zinc-500">#{rank} Sin tiempo</p>
+                  <p className="text-sm text-zinc-500">#{slot.rank} Sin tiempo</p>
                 )}
-                <div className={`mt-3 rounded-xl bg-zinc-100 ${rank === 1 ? 'h-20' : rank === 2 ? 'h-14' : 'h-10'}`} />
+                <div className={`mt-3 rounded-xl bg-zinc-100 ${slot.baseHeightClass}`} />
               </article>
             )
           })}
