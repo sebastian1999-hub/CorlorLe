@@ -17,6 +17,9 @@ const sliderConfig: Record<Channel, { min: number; max: number; label: string }>
 
 export function HsvPicker({ value, onChange }: HsvPickerProps) {
   const preview = hsvToHex(value)
+  const hueGradient = 'linear-gradient(90deg, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)'
+  const saturationGradient = `linear-gradient(90deg, hsl(${value.h} 0% ${value.v}%), hsl(${value.h} 100% ${value.v}%))`
+  const valueGradient = `linear-gradient(90deg, hsl(${value.h} ${value.s}% 0%), hsl(${value.h} ${value.s}% 50%), hsl(${value.h} ${value.s}% 100%))`
 
   const clampToChannel = (channel: Channel, nextValue: number): number => {
     const { min, max } = sliderConfig[channel]
@@ -44,14 +47,14 @@ export function HsvPicker({ value, onChange }: HsvPickerProps) {
   }
 
   return (
-    <div className="grid gap-4 rounded-3xl border border-zinc-900/10 bg-white p-5 shadow-lg">
-      <div className="rounded-2xl border border-zinc-300 p-3">
+    <div className="grid gap-4 rounded-3xl border border-zinc-900/10 bg-white p-4 shadow-lg sm:p-5">
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
         <div
-          className="h-24 w-full rounded-xl border border-zinc-900/20"
+          className="h-28 w-full rounded-xl border border-zinc-900/20 shadow-inner"
           style={{ backgroundColor: preview }}
           aria-label="Color seleccionado"
         />
-        <p className="mt-2 text-center font-mono text-sm text-zinc-700">{preview.toUpperCase()}</p>
+        <p className="mt-2 text-center font-mono text-sm font-semibold text-zinc-700">{preview.toUpperCase()}</p>
       </div>
 
       {(['h', 's', 'v'] as Channel[]).map((channel) => (
@@ -69,7 +72,14 @@ export function HsvPicker({ value, onChange }: HsvPickerProps) {
             onPointerDown={capturePointer}
             onPointerUp={releasePointer}
             onPointerCancel={releasePointer}
-            className="w-full accent-amber-500"
+            className="hsv-slider w-full"
+            style={{
+              background: channel === 'h'
+                ? hueGradient
+                : channel === 's'
+                  ? saturationGradient
+                  : valueGradient,
+            }}
           />
         </label>
       ))}

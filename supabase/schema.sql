@@ -56,6 +56,29 @@ create policy "Users can read own attempts"
 on public.attempts for select
 using (auth.uid() = user_id);
 
+-- Daily crossword attempts (time-based ranking: lower is better).
+create table if not exists public.crossword_attempts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date date not null,
+  seconds double precision not null check (seconds >= 0),
+  created_at timestamptz not null default now(),
+  constraint crossword_attempts_user_date_unique unique (user_id, date)
+);
+
+create index if not exists crossword_attempts_date_seconds_idx
+  on public.crossword_attempts(date, seconds asc);
+
+alter table public.crossword_attempts enable row level security;
+
+create policy "Crossword attempts are publicly readable"
+on public.crossword_attempts for select
+using (true);
+
+create policy "Users can insert own crossword attempt"
+on public.crossword_attempts for insert
+with check (auth.uid() = user_id);
+
 -- Tournament run metadata (one bracket per configured start date).
 create table if not exists public.tournament_runs (
   id uuid primary key default gen_random_uuid(),

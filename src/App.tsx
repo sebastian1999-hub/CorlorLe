@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
+import { CrosswordTab } from './components/CrosswordTab'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
-import { PodiumPoolTab } from './components/PodiumPoolTab'
 import { Records } from './components/Records'
-import { TournamentTab } from './components/TournamentTab'
 import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from './lib/authGuard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
 import { dailyTargetColor, todayKey } from './lib/dailyChallenge'
@@ -32,6 +31,7 @@ import type {
 } from './types'
 
 type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
+type GameTab = 'dailyColor' | 'crossword' | 'animatedCharacter'
 
 type ResultState = {
   targetHex: string
@@ -47,6 +47,9 @@ const WARMUP_START_DATE = '2026-05-06'
 const FIRST_PLAYABLE_DATE = '2026-05-04'
 const WARMUP_MAX_USES = 3
 const NO_TIMER_USERNAME = 'lara'
+const EVENT_MODE_ENABLED = false
+const WARMUP_ENABLED = false
+const RECORDS_ENABLED = false
 
 type TournamentMatchView = {
   id: string
@@ -169,8 +172,6 @@ const createDemoTournamentAttempts = (
 }
 
 function App() {
-  const initialLeaderboardTab: 'daily' | 'general' | 'tournament' | 'podium' = 'tournament'
-
   const [session, setSession] = useState<Session | null>(null)
   const [profileUsername, setProfileUsername] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -188,11 +189,9 @@ function App() {
   const [result, setResult] = useState<ResultState | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'general' | 'tournament' | 'podium'>(initialLeaderboardTab)
-  const [viewDate, setViewDate] = useState<string>(() => {
-    const currentDate = todayKey()
-    return currentDate > DAILY_LAST_DATE ? DAILY_LAST_DATE : currentDate
-  })
+  const [activeGameTab, setActiveGameTab] = useState<GameTab>('dailyColor')
+  const [crosswordView, setCrosswordView] = useState<'home' | 'play'>('home')
+  const [viewDate, setViewDate] = useState<string>(() => todayKey())
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [practiceTargetHex, setPracticeTargetHex] = useState<string | null>(null)
@@ -231,7 +230,6 @@ function App() {
   }, [urlSearchParams])
   const shouldForceTournament = forceTournamentNow || demoTournamentMode
   const isTournamentDate = shouldForceTournament || date >= TOURNAMENT_START_DATE
-  const isDailyClosed = shouldForceTournament || date > DAILY_LAST_DATE
 
   const displayDate = useMemo(() => {
     const [year, month, day] = viewDate.split('-')
@@ -262,6 +260,7 @@ function App() {
   const canUseWarmupFeature = date >= WARMUP_START_DATE
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
   const isBeforeFirstPlayableViewDate = viewDate < FIRST_PLAYABLE_DATE
+  const isColorGameActive = activeGameTab === 'dailyColor'
   const isTimedScoreChallenge = isPracticeMode
   const isPreviewStage = stage === 'preview' || stage === 'tournamentPreview'
   const isPickStage = stage === 'pick' || stage === 'tournamentPick'
@@ -1009,7 +1008,7 @@ function App() {
 
     setHasPlayedToday(Boolean(ownAttempt))
 
-    const attempts = (allAttemptsData ?? []).filter((attempt) => attempt.date <= DAILY_LAST_DATE)
+    const attempts = allAttemptsData ?? []
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
 
     let usernameById: Record<string, string> = {}
@@ -1286,7 +1285,7 @@ function App() {
   }, [viewDate, refreshDailyLeaderboard, session])
 
   useEffect(() => {
-    if (!session) {
+    if (!session || !RECORDS_ENABLED) {
       return
     }
     const timeout = window.setTimeout(() => {
@@ -1297,7 +1296,7 @@ function App() {
   }, [refreshRecords, session])
 
   useEffect(() => {
-    if (!session) {
+    if (!session || !EVENT_MODE_ENABLED) {
       return
     }
     const timeout = window.setTimeout(() => {
@@ -1451,8 +1450,8 @@ function App() {
       return
     }
 
-    if (dateToUse > DAILY_LAST_DATE) {
-      setErrorText('El reto diario finalizo el 12/05/2026. Desde el 13/05/2026 comienza el torneo.')
+    if (dateToUse > DAILY_LAST_DATE && dateToUse < date) {
+      setErrorText('No hubo reto diario entre el 13/05/2026 y ayer. Usa el 12/05/2026 o el reto de hoy.')
       return
     }
 
@@ -1469,6 +1468,46 @@ function App() {
     setDifficulty('hard')
     setPickerHsv(defaultHsv)
     setStage('preview')
+  }
+
+  const goToPreviousViewDate = () => {
+    if (viewDate <= FIRST_PLAYABLE_DATE) {
+      return
+    }
+
+    if (viewDate === date && date > DAILY_LAST_DATE) {
+      setViewDate(DAILY_LAST_DATE)
+      return
+    }
+
+    if (viewDate > DAILY_LAST_DATE && viewDate < date) {
+      setViewDate(DAILY_LAST_DATE)
+      return
+    }
+
+    const previousDate = new Date(viewDate + 'T00:00:00Z')
+    previousDate.setUTCDate(previousDate.getUTCDate() - 1)
+    setViewDate(previousDate.toISOString().slice(0, 10))
+  }
+
+  const goToNextViewDate = () => {
+    if (viewDate >= date) {
+      return
+    }
+
+    if (viewDate === DAILY_LAST_DATE && date > DAILY_LAST_DATE) {
+      setViewDate(date)
+      return
+    }
+
+    if (viewDate > DAILY_LAST_DATE && viewDate < date) {
+      setViewDate(date)
+      return
+    }
+
+    const nextDate = new Date(viewDate + 'T00:00:00Z')
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1)
+    setViewDate(nextDate.toISOString().slice(0, 10))
   }
 
   const beginTournamentDuel = (matchId: string) => {
@@ -1527,11 +1566,6 @@ function App() {
   const beginPracticeChallenge = () => {
     if (!session || !profileUsername) {
       setErrorText('Debes estar registrado para jugar. Por favor cierra sesion y vuelve a intentarlo.')
-      return
-    }
-
-    if (isDailyClosed) {
-      setErrorText('El calentamiento solo estaba disponible durante los retos diarios.')
       return
     }
 
@@ -1716,18 +1750,24 @@ function App() {
   }
 
   const handlePrimaryAction = () => {
-    if (leaderboardTab === 'tournament') {
-      if (nextTournamentMatchId) {
-        beginTournamentDuel(nextTournamentMatchId)
-      }
+    if (activeGameTab === 'crossword') {
+      setCrosswordView('play')
       return
     }
 
-    if (leaderboardTab === 'podium') {
+    if (!isColorGameActive) {
       return
     }
 
     beginChallenge(viewDate)
+  }
+
+  if (EVENT_MODE_ENABLED) {
+    void podiumSaving
+    void championName
+    void saveMatchPrediction
+    void beginTournamentDuel
+    void leaderboard
   }
 
   if (authLoading) {
@@ -1741,207 +1781,196 @@ function App() {
   return (
     <div className="bg-animated min-h-screen px-3 py-6 text-zinc-900 sm:px-4 sm:py-8">
       <main className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-zinc-900/10 bg-white/80 p-6 shadow-lg backdrop-blur md:flex-row md:items-center">
-          <div>
-            <h1 className="text-3xl font-black">Reto PreAltet</h1>
-            <p className="text-sm text-zinc-600">
-              {isDailyClosed
-                ? 'Torneo eliminatorio activo desde el 13/05/2026'
-                : `Reto de hoy: ${displayDate}`}
-            </p>
-          </div>
+        <header className="rounded-[2rem] border border-zinc-900/10 bg-white/80 p-4 shadow-xl backdrop-blur sm:p-6">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h1 className="mt-1 text-3xl font-black text-zinc-900 sm:text-4xl">Retos Diarios</h1>
+              </div>
 
-            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
-            <button
-              type="button"
-              onClick={handlePrimaryAction}
-              disabled={(() => {
-                if (leaderboardTab === 'tournament') {
-                  return !isTournamentDate || tournamentLoading || !nextTournamentMatchId
-                }
+              <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[290px]">
+                <button
+                  type="button"
+                  onClick={handlePrimaryAction}
+                  disabled={activeGameTab === 'dailyColor'
+                    ? (
+                        hasPlayedOnViewDate ||
+                        loadingData ||
+                        isBeforeFirstPlayableViewDate
+                      )
+                    : activeGameTab !== 'crossword'}
+                  className="rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {activeGameTab === 'crossword'
+                    ? (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
+                    : !isColorGameActive
+                      ? 'Disponible pronto'
+                      : isBeforeFirstPlayableViewDate
+                        ? 'No disponible'
+                        : hasPlayedOnViewDate
+                          ? 'Reto ya completado'
+                          : 'Jugar reto diario'}
+                </button>
 
-                if (leaderboardTab === 'podium') {
-                  return true
-                }
+                {WARMUP_ENABLED && canUseWarmupFeature && isColorGameActive && (
+                  <button
+                    type="button"
+                    onClick={beginPracticeChallenge}
+                    disabled={loadingData || hasPlayedToday || warmupUsesLeft <= 0}
+                    className="rounded-xl border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {hasPlayedToday
+                      ? 'Calentamiento bloqueado'
+                      : `Calentamiento (${warmupUsesLeft}/${WARMUP_MAX_USES})`}
+                  </button>
+                )}
 
-                return (
-                  hasPlayedOnViewDate ||
-                  loadingData ||
-                  leaderboardTab !== 'daily' ||
-                  isBeforeFirstPlayableViewDate ||
-                  isDailyClosed
-                )
-              })()}
-                className="w-full rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
-            >
-              {leaderboardTab === 'tournament'
-                ? !isTournamentDate
-                  ? 'Torneo no disponible'
-                  : nextTournamentMatchId
-                    ? 'Realizar duelo'
-                    : 'Sin duelos pendientes'
-                : leaderboardTab === 'podium'
-                  ? 'Completa la porra abajo'
-                : isDailyClosed
-                  ? 'Reto diario finalizado'
-                  : isBeforeFirstPlayableViewDate
-                    ? 'No disponible'
-                    : hasPlayedOnViewDate
-                      ? 'Reto ya completado'
-                      : 'Reto Diario'}
-            </button>
-            {canUseWarmupFeature && (
+                {RECORDS_ENABLED && (
+                  <button
+                  type="button"
+                  onClick={() => setStage('records')}
+                  disabled={!hasPlayedToday && !canOpenRecordsFromTournament}
+                  className="rounded-xl border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Records
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="rounded-xl border border-zinc-300 px-4 py-3 text-sm text-zinc-700 transition hover:bg-zinc-100"
+                >
+                  Salir
+                </button>
+              </div>
+            </div>
+
+            <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-2 sm:grid-cols-3">
               <button
                 type="button"
-                onClick={beginPracticeChallenge}
-                disabled={loadingData || hasPlayedToday || warmupUsesLeft <= 0 || isDailyClosed}
-                className="w-full rounded-lg border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+                onClick={() => {
+                  setActiveGameTab('dailyColor')
+                  setCrosswordView('home')
+                  setStage('home')
+                }}
+                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+                  activeGameTab === 'dailyColor'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'bg-white text-zinc-600 hover:text-zinc-900'
+                }`}
               >
-                {isDailyClosed
-                  ? 'Calentamiento finalizado'
-                  : hasPlayedToday
-                  ? 'Calentamiento bloqueado'
-                  : `Calentamiento (${warmupUsesLeft}/${WARMUP_MAX_USES})`}
+                Adivina el color del dia
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setStage('records')}
-              disabled={!hasPlayedToday && !canOpenRecordsFromTournament}
-              className="w-full rounded-lg border border-blue-400 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
-            >
-              Récords
-            </button>
-            <button
-              type="button"
-              onClick={signOut}
-              className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm text-zinc-700 transition hover:bg-zinc-100 md:w-auto"
-            >
-              Salir
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveGameTab('crossword')
+                  setCrosswordView('home')
+                  setStage('home')
+                }}
+                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+                  activeGameTab === 'crossword'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'bg-white text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Crucigrama
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveGameTab('animatedCharacter')
+                  setCrosswordView('home')
+                  setStage('home')
+                }}
+                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+                  activeGameTab === 'animatedCharacter'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'bg-white text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Adivina el personaje de animacion
+              </button>
+            </nav>
           </div>
         </header>
 
         {errorText && <p className="rounded-xl bg-red-100 p-3 text-sm text-red-700">{errorText}</p>}
 
-        {stage === 'home' && (
+        {stage === 'home' && isColorGameActive && (
           <div className="space-y-4">
-            <div className="flex rounded-2xl border border-zinc-900/10 bg-white/80 p-1 shadow backdrop-blur">
-              <button
-                type="button"
-                onClick={() => setLeaderboardTab('daily')}
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
-                  leaderboardTab === 'daily'
-                    ? 'bg-zinc-900 text-zinc-100 shadow'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                Diaria
-              </button>
-              <button
-                type="button"
-                onClick={() => setLeaderboardTab('general')}
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
-                  leaderboardTab === 'general'
-                    ? 'bg-zinc-900 text-zinc-100 shadow'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                General
-              </button>
-              <button
-                type="button"
-                onClick={() => setLeaderboardTab('tournament')}
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
-                  leaderboardTab === 'tournament'
-                    ? 'bg-zinc-900 text-zinc-100 shadow'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                Torneo
-              </button>
-              <button
-                type="button"
-                onClick={() => setLeaderboardTab('podium')}
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
-                  leaderboardTab === 'podium'
-                    ? 'bg-zinc-900 text-zinc-100 shadow'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                Porra
-              </button>
-            </div>
-            {leaderboardTab === 'daily' ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
-                  <button
-                    type="button"
-                    disabled={viewDate <= FIRST_PLAYABLE_DATE}
-                    onClick={() => {
-                      const d = new Date(viewDate + 'T00:00:00Z')
-                      d.setUTCDate(d.getUTCDate() - 1)
-                      setViewDate(d.toISOString().slice(0, 10))
-                    }}
-                    className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
-                    aria-label="Dia anterior"
-                  >
-                    ‹
-                  </button>
-                  <span className="text-sm font-semibold text-zinc-700">{displayDate}</span>
-                  <button
-                    type="button"
-                    disabled={viewDate >= (date > DAILY_LAST_DATE ? DAILY_LAST_DATE : date)}
-                    onClick={() => {
-                      const d = new Date(viewDate + 'T00:00:00Z')
-                      d.setUTCDate(d.getUTCDate() + 1)
-                      setViewDate(d.toISOString().slice(0, 10))
-                    }}
-                    className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
-                    aria-label="Dia siguiente"
-                  >
-                    ›
-                  </button>
-                </div>
-                <Leaderboard
-                  entries={dailyLeaderboard}
-                  title={`Clasificacion${viewDate === (date > DAILY_LAST_DATE ? DAILY_LAST_DATE : date) ? ' del dia' : ''} · ${displayDate}`}
-                  showColors={viewDate < date || hasPlayedOnViewDate}
-                />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
+                <button
+                  type="button"
+                  disabled={viewDate <= FIRST_PLAYABLE_DATE}
+                  onClick={goToPreviousViewDate}
+                  className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                  aria-label="Dia anterior"
+                >
+                  ‹
+                </button>
+                <span className="text-sm font-semibold text-zinc-700">{displayDate}</span>
+                <button
+                  type="button"
+                  disabled={viewDate >= date}
+                  onClick={goToNextViewDate}
+                  className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                  aria-label="Dia siguiente"
+                >
+                  ›
+                </button>
               </div>
-            ) : leaderboardTab === 'general' ? (
+              <Leaderboard
+                entries={dailyLeaderboard}
+                title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
+                showColors={viewDate < date || hasPlayedOnViewDate}
+              />
+            </div>
+
+            {/* Tabla general ocultada por ahora para no mostrarla en UI.
+            {leaderboardTab === 'general' && (
               <Leaderboard entries={leaderboard} title="Clasificacion general" />
-            ) : leaderboardTab === 'tournament' ? (
-              <TournamentTab
-                isTournamentDate={isTournamentDate}
-                loading={tournamentLoading}
-                hasRun={Boolean(tournamentRun)}
-                championName={championName}
-                rounds={tournamentRoundsForUi}
-                onRefresh={() => {
-                  void refreshTournamentData()
-                }}
-              />
-            ) : (
-              <PodiumPoolTab
-                isTournamentDate={isTournamentDate}
-                loading={tournamentLoading}
-                saving={podiumSaving}
-                rounds={tournamentRoundsForUi}
-                predictions={tournamentMatchPredictions}
-                myPredictionKeys={myTournamentPredictionKeys}
-                onVote={(roundNumber, matchNumber, predictedWinnerUserId) => {
-                  void saveMatchPrediction(roundNumber, matchNumber, predictedWinnerUserId)
-                }}
-              />
             )}
+            */}
+
+            {/* Evento anterior oculto para no renderizar ni consumir datos; conservar para futura reactivacion.
+            {leaderboardTab === 'tournament' ? (
+              <TournamentTab ... />
+            ) : (
+              <PodiumPoolTab ... />
+            )}
+            */}
           </div>
         )}
 
+        {stage === 'home' && activeGameTab === 'crossword' && (
+          <CrosswordTab
+            session={session}
+            dateKey={date}
+            showGame={crosswordView === 'play'}
+            onBackToPodium={() => setCrosswordView('home')}
+          />
+        )}
+
+        {stage === 'home' && activeGameTab === 'animatedCharacter' && (
+          <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-6 shadow-lg backdrop-blur sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Proximamente</p>
+            <h2 className="mt-2 text-2xl font-black text-zinc-900 sm:text-3xl">
+              Adivina el personaje de animacion
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm text-zinc-600 sm:text-base">
+              Esta pestana queda preparada para la siguiente fase. La base ya esta lista y el foco actual sigue siendo el reto diario de color y el crucigrama.
+            </p>
+          </section>
+        )}
+
         {isPreviewStage && difficulty && (
-          <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-8 text-center shadow-lg backdrop-blur">
-            <p className="text-sm text-zinc-500">Memoriza este color</p>
-            <div className="mx-auto mt-4 h-52 w-full max-w-md rounded-3xl border border-zinc-900/15 shadow-inner transition-opacity duration-500" style={{ backgroundColor: activeTargetHex }} />
+          <section className="rounded-3xl border border-zinc-900/10 bg-white/90 p-5 text-center shadow-lg backdrop-blur sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Fase de memoria</p>
+            <p className="mt-2 text-lg font-bold text-zinc-900 sm:text-xl">Memoriza este color</p>
+            <div className="mx-auto mt-4 h-56 w-full max-w-md rounded-3xl border border-zinc-900/15 shadow-inner transition-opacity duration-500" style={{ backgroundColor: activeTargetHex }} />
             {!isLaraUser && (
               <p className="mt-4 text-4xl font-black text-zinc-900">{previewCountdown.toFixed(1)}s</p>
             )}
@@ -1950,13 +1979,13 @@ function App() {
         )}
 
         {isPickStage && difficulty && (
-          <section className="grid gap-6 rounded-3xl border border-zinc-900/10 bg-white/85 p-6 shadow-lg backdrop-blur md:grid-cols-2">
+          <section className="grid gap-6 rounded-3xl border border-zinc-900/10 bg-white/90 p-4 shadow-lg backdrop-blur sm:p-6 md:grid-cols-2">
             <div className="space-y-4">
-              <p className="text-sm uppercase tracking-wide text-zinc-500">Color oculto</p>
-              <div className="flex h-52 items-center justify-center rounded-3xl border border-dashed border-zinc-400 bg-zinc-100 text-zinc-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Color oculto</p>
+              <div className="flex h-52 items-center justify-center rounded-3xl border border-dashed border-zinc-400 bg-zinc-100/80 text-center text-zinc-500">
                 Recrealo con tu memoria
               </div>
-              <p className="text-sm text-zinc-600">Dificultad: {difficulty.toUpperCase()}</p>
+              <p className="text-sm text-zinc-600">Dificultad: <span className="font-bold">{difficulty.toUpperCase()}</span></p>
               <div className="rounded-2xl border border-zinc-900/10 bg-zinc-50 p-3">
                 {!isLaraUser && isTimedScoreChallenge && (
                   <>
@@ -2032,9 +2061,6 @@ function App() {
                 setActiveTournamentMatchNumber(null)
                 setActiveTournamentDuelIndex(null)
                 setActiveTournamentTargetHex(null)
-                if (activeTournamentMatchId) {
-                  setLeaderboardTab('tournament')
-                }
               }}
               className="mt-5 rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
             >
@@ -2043,7 +2069,7 @@ function App() {
           </section>
         )}
 
-        {stage === 'records' && (
+        {RECORDS_ENABLED && stage === 'records' && (
           <>
             <div className="flex items-center justify-between gap-4 rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
               <h2 className="text-2xl font-bold text-zinc-900">Récords Globales</h2>
