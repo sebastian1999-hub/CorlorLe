@@ -49,7 +49,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null)
   const [draggingLetter, setDraggingLetter] = useState<string | null>(null)
   const [podium, setPodium] = useState<PodiumEntry[]>([])
-  const [loadingPodium, setLoadingPodium] = useState(true)
   const [statusText, setStatusText] = useState<string | null>(null)
   const [hasSolvedToday, setHasSolvedToday] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -83,8 +82,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   }, [answerCoords])
 
   const refreshPodium = useCallback(async () => {
-    setLoadingPodium(true)
-
     const { data, error } = await supabase
       .from('crossword_attempts')
       .select('user_id,seconds')
@@ -97,7 +94,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       if (relationMissing) {
         setSchemaMissing(true)
       }
-      setLoadingPodium(false)
       return
     }
 
@@ -125,7 +121,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     }))
 
     setPodium(nextPodium)
-    setLoadingPodium(false)
   }, [dateKey])
 
   const loadMyAttempt = useCallback(async () => {
@@ -684,27 +679,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
             </article>
           )}
 
-          <article className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Podio por tiempo</h3>
-              {loadingPodium && <span className="text-xs text-zinc-500">Cargando...</span>}
-            </div>
-
-            {schemaMissing ? (
-              <p className="text-sm text-zinc-600">Activa la tabla `crossword_attempts` para ver el podio.</p>
-            ) : podium.length === 0 ? (
-              <p className="text-sm text-zinc-600">Todavia no hay tiempos registrados.</p>
-            ) : (
-              <div className="space-y-2">
-                {podium.map((entry, index) => (
-                  <div key={entry.userId} className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
-                    <p className="text-sm font-semibold text-zinc-800">#{index + 1} {entry.username}</p>
-                    <p className="text-sm font-black text-emerald-700">{formatSeconds(entry.seconds)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
         </div>
       </div>
     </section>
