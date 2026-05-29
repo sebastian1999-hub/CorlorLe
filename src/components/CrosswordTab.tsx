@@ -57,6 +57,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   const [validationFeedbackMatrix, setValidationFeedbackMatrix] = useState<CellFeedback[][] | null>(null)
   const startedAt = useRef<number | null>(null)
   const completionStarted = useRef(false)
+  const mobileInputRef = useRef<HTMLInputElement | null>(null)
 
   const answerCoords = useMemo(() => {
     const coords: Array<{ row: number; col: number }> = []
@@ -79,6 +80,15 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   }, [answerCoords])
 
   const isValidationAnimating = validationPhase !== 'idle'
+
+  const focusMobileInput = useCallback(() => {
+    if (!mobileInputRef.current || hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
+      return
+    }
+
+    mobileInputRef.current.focus()
+    mobileInputRef.current.select()
+  }, [hasSolvedToday, isAnimatingCompletion, isValidationAnimating, schemaMissing])
 
   const refreshPodium = useCallback(async () => {
     const { data, error } = await supabase
@@ -624,6 +634,9 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     const sameCell = activeCell?.row === row && activeCell?.col === col
     setActiveCell({ row, col })
     setTypingDirection(sameCell ? 'down' : 'across')
+    window.setTimeout(() => {
+      focusMobileInput()
+    }, 0)
   }
 
   const onCellPointerDown = (event: React.PointerEvent<HTMLButtonElement>, row: number, col: number) => {
@@ -633,6 +646,52 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
     event.preventDefault()
     onCellTap(row, col)
+  }
+
+  const handleMobileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activeCell || hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
+      event.currentTarget.value = ''
+      return
+    }
+
+    const rawValue = event.currentTarget.value
+    event.currentTarget.value = ''
+
+    if (!rawValue) {
+      return
+    }
+
+    const { row, col } = activeCell
+    const firstChar = rawValue
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+      .slice(0, 1)
+
+    if (!firstChar) {
+      return
+    }
+
+    placeLetter(row, col, firstChar)
+  }
+
+  const handleMobileInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Backspace') {
+      return
+    }
+
+    if (!activeCell) {
+      return
+    }
+
+    const { row, col } = activeCell
+    const currentValue = cells[row][col]
+    if (currentValue) {
+      event.preventDefault()
+      placeLetter(row, col, null, { moveForward: false })
+      return
+    }
   }
 
   const getCellDisplay = (row: number, col: number): string => {
@@ -753,6 +812,20 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 shadow-lg backdrop-blur sm:p-6">
+      <input
+        ref={mobileInputRef}
+        aria-hidden="true"
+        tabIndex={-1}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="characters"
+        spellCheck={false}
+        inputMode="text"
+        enterKeyHint="done"
+        onChange={handleMobileInputChange}
+        onKeyDown={handleMobileInputKeyDown}
+        className="fixed left-0 top-0 h-px w-px opacity-0 pointer-events-none"
+      />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-xl font-black text-zinc-900 sm:text-2xl">Crucigrama Diario</h2>
@@ -816,7 +889,9 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                       data-row={rowIndex}
                       data-col={colIndex}
                       onFocus={() => onCellTap(rowIndex, colIndex)}
-                      onPointerDown={(event) => onCellPointerDown(event, rowIndex, colIndex)}
+                      onPointerDown={(event) => {
+                        onCellPointerDown(event, rowIndex, colIndex)
+                      }}
                       onClick={(event) => {
                         if (event.detail === 0) {
                           onCellTap(rowIndex, colIndex)
