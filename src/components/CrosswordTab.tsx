@@ -859,9 +859,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
           <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Teclado: escribe letras, borra con Backspace/Delete, mueve con flechas y cambia direccion con Enter o espacio.
-            </p>
+            
             <p className="mt-1 text-xs text-zinc-500">
               Direccion actual: <span className="font-bold">{typingDirection === 'across' ? 'Horizontal' : 'Vertical'}</span>
             </p>
