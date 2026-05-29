@@ -20,8 +20,6 @@ type PodiumEntry = {
 }
 
 type CellFeedback = 'none' | 'correct' | 'wrong'
-type TypingDirection = 'across' | 'down'
-type ActiveCell = { row: number; col: number } | null
 type ValidationPhase = 'idle' | 'reveal' | 'clear'
 
 const MAX_CHECKS = 2
@@ -35,14 +33,25 @@ const formatSeconds = (value: number): string => {
 
 export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: CrosswordTabProps) {
   const puzzle = useMemo(() => buildDailyCrossword(dateKey), [dateKey])
+  const letterPool = useMemo(() => {
+    const letters = new Set<string>()
+    for (const row of puzzle.grid) {
+      for (const cell of row) {
+        if (!cell.blocked && cell.solution) {
+          letters.add(cell.solution)
+        }
+      }
+    }
+    return [...letters].sort()
+  }, [puzzle.grid])
   const [cells, setCells] = useState<string[][]>(() =>
     puzzle.grid.map((row: CrosswordCell[]) => row.map((cell: CrosswordCell) => (cell.blocked ? '#' : ''))),
   )
   const [feedback, setFeedback] = useState<CellFeedback[][]>(() =>
     puzzle.grid.map((row: CrosswordCell[]) => row.map((cell: CrosswordCell) => (cell.blocked ? 'none' : 'none'))),
   )
-  const [activeCell, setActiveCell] = useState<ActiveCell>(null)
-  const [typingDirection, setTypingDirection] = useState<TypingDirection>('across')
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null)
+  const [draggingLetter, setDraggingLetter] = useState<string | null>(null)
   const [podium, setPodium] = useState<PodiumEntry[]>([])
   const [statusText, setStatusText] = useState<string | null>(null)
   const [hasSolvedToday, setHasSolvedToday] = useState(false)
@@ -57,7 +66,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   const [validationFeedbackMatrix, setValidationFeedbackMatrix] = useState<CellFeedback[][] | null>(null)
   const startedAt = useRef<number | null>(null)
   const completionStarted = useRef(false)
-  const mobileInputRef = useRef<HTMLInputElement | null>(null)
+  const selectedLetterRef = useRef<string | null>(null)
 
   const answerCoords = useMemo(() => {
     const coords: Array<{ row: number; col: number }> = []
@@ -80,15 +89,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
   }, [answerCoords])
 
   const isValidationAnimating = validationPhase !== 'idle'
-
-  const focusMobileInput = useCallback(() => {
-    if (!mobileInputRef.current || hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
-      return
-    }
-
-    mobileInputRef.current.focus()
-    mobileInputRef.current.select()
-  }, [hasSolvedToday, isAnimatingCompletion, isValidationAnimating, schemaMissing])
 
   const refreshPodium = useCallback(async () => {
     const { data, error } = await supabase
@@ -168,8 +168,9 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       setValidationPhase('idle')
       setValidationStep(0)
       setValidationFeedbackMatrix(null)
-      setActiveCell(null)
-      setTypingDirection('across')
+      setSelectedLetter(null)
+      selectedLetterRef.current = null
+      setDraggingLetter(null)
       setCells(puzzle.grid.map((row: CrosswordCell[]) => row.map((cell: CrosswordCell) => (cell.blocked ? '#' : ''))))
       setFeedback(puzzle.grid.map((row: CrosswordCell[]) => row.map((cell: CrosswordCell) => (cell.blocked ? 'none' : 'none'))))
       void Promise.all([loadMyAttempt(), refreshPodium()])
@@ -271,7 +272,9 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
     completionStarted.current = true
     setHasSolvedToday(true)
-    setActiveCell(null)
+    setSelectedLetter(null)
+    selectedLetterRef.current = null
+    setDraggingLetter(null)
     setFeedback((previous) =>
       previous.map((line) => line.map((value) => (value === 'wrong' ? 'none' : value))),
     )
@@ -404,61 +407,8 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     [hasSolvedToday, isAnimatingCompletion, isValidationAnimating],
   )
 
-  const isCellPlayable = useCallback(
-    (row: number, col: number) => {
-      if (row < 0 || row >= puzzle.size || col < 0 || col >= puzzle.size) {
-        return false
-      }
-      return !puzzle.grid[row][col].blocked
-    },
-    [puzzle.grid, puzzle.size],
-  )
-
-  const moveInDirection = useCallback(
-    (fromRow: number, fromCol: number, direction: TypingDirection, step: 1 | -1): ActiveCell => {
-      const rowDelta = direction === 'down' ? step : 0
-      const colDelta = direction === 'across' ? step : 0
-      let nextRow = fromRow + rowDelta
-      let nextCol = fromCol + colDelta
-
-      while (nextRow >= 0 && nextRow < puzzle.size && nextCol >= 0 && nextCol < puzzle.size) {
-        if (isCellPlayable(nextRow, nextCol)) {
-          return { row: nextRow, col: nextCol }
-        }
-        nextRow += rowDelta
-        nextCol += colDelta
-      }
-
-      return null
-    },
-    [isCellPlayable, puzzle.size],
-  )
-
-  const moveInLine = useCallback(
-    (fromRow: number, fromCol: number, rowDelta: number, colDelta: number): ActiveCell => {
-      let nextRow = fromRow + rowDelta
-      let nextCol = fromCol + colDelta
-
-      while (nextRow >= 0 && nextRow < puzzle.size && nextCol >= 0 && nextCol < puzzle.size) {
-        if (isCellPlayable(nextRow, nextCol)) {
-          return { row: nextRow, col: nextCol }
-        }
-        nextRow += rowDelta
-        nextCol += colDelta
-      }
-
-      return null
-    },
-    [isCellPlayable, puzzle.size],
-  )
-
   const placeLetter = useCallback(
-    (
-      row: number,
-      col: number,
-      letter: string | null,
-      options: { moveForward?: boolean } = {},
-    ) => {
+    (row: number, col: number, letter: string | null) => {
       if (schemaMissing || hasSolvedToday || isAnimatingCompletion || isValidationAnimating || puzzle.grid[row][col].blocked) {
         return
       }
@@ -480,167 +430,26 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       }
 
       setCellValue(row, col, normalized)
-
-      if (options.moveForward === false) {
-        return
-      }
-
-      const next = moveInDirection(row, col, typingDirection, 1)
-      if (next) {
-        setActiveCell(next)
-      }
     },
-    [hasSolvedToday, isAnimatingCompletion, isValidationAnimating, moveInDirection, puzzle.grid, schemaMissing, setCellValue, typingDirection],
+    [hasSolvedToday, isAnimatingCompletion, isValidationAnimating, puzzle.grid, schemaMissing, setCellValue],
   )
 
-  useEffect(() => {
-    if (!showGame || schemaMissing || hasSolvedToday || isAnimatingCompletion || isValidationAnimating) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      if (target) {
-        const tagName = target.tagName
-        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || target.isContentEditable) {
-          return
-        }
-      }
-
-      if (!activeCell) {
-        return
-      }
-
-      const { row, col } = activeCell
-
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault()
-        setTypingDirection('across')
-        const previous = moveInLine(row, col, 0, -1)
-        if (previous) {
-          setActiveCell(previous)
-        }
-        return
-      }
-
-      if (event.key === 'ArrowRight') {
-        event.preventDefault()
-        setTypingDirection('across')
-        const next = moveInLine(row, col, 0, 1)
-        if (next) {
-          setActiveCell(next)
-        }
-        return
-      }
-
-      if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        setTypingDirection('down')
-        const previous = moveInLine(row, col, -1, 0)
-        if (previous) {
-          setActiveCell(previous)
-        }
-        return
-      }
-
-      if (event.key === 'ArrowDown') {
-        event.preventDefault()
-        setTypingDirection('down')
-        const next = moveInLine(row, col, 1, 0)
-        if (next) {
-          setActiveCell(next)
-        }
-        return
-      }
-
-      if (event.key === 'Tab') {
-        event.preventDefault()
-        const step: 1 | -1 = event.shiftKey ? -1 : 1
-        const next = moveInDirection(row, col, typingDirection, step)
-        if (next) {
-          setActiveCell(next)
-        }
-        return
-      }
-
-      if (event.key === ' ' || event.key === 'Enter') {
-        event.preventDefault()
-        setTypingDirection((previous) => (previous === 'across' ? 'down' : 'across'))
-        return
-      }
-
-      if (event.key === 'Backspace') {
-        event.preventDefault()
-        const currentValue = cells[row][col]
-        if (currentValue) {
-          placeLetter(row, col, null, { moveForward: false })
-          return
-        }
-
-        const previous = moveInDirection(row, col, typingDirection, -1)
-        if (!previous) {
-          return
-        }
-
-        placeLetter(previous.row, previous.col, null, { moveForward: false })
-        setActiveCell(previous)
-        return
-      }
-
-      if (event.key === 'Delete') {
-        event.preventDefault()
-        placeLetter(row, col, null, { moveForward: false })
-        return
-      }
-
-      const normalized = event.key
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toUpperCase()
-        .replace(/[^A-Z]/g, '')
-        .slice(0, 1)
-
-      if (!normalized) {
-        return
-      }
-
-      event.preventDefault()
-      placeLetter(row, col, normalized)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [
-    activeCell,
-    cells,
-    hasSolvedToday,
-    isAnimatingCompletion,
-    isValidationAnimating,
-    moveInDirection,
-    moveInLine,
-    placeLetter,
-    schemaMissing,
-    showGame,
-    typingDirection,
-  ])
-
   const onCellTap = (row: number, col: number) => {
-    if (!isCellPlayable(row, col) || schemaMissing || hasSolvedToday || isAnimatingCompletion || isValidationAnimating) {
+    const currentSelectedLetter = selectedLetterRef.current
+    if (!currentSelectedLetter || schemaMissing || hasSolvedToday || isAnimatingCompletion || isValidationAnimating) {
       return
     }
 
-    const sameCell = activeCell?.row === row && activeCell?.col === col
-    setActiveCell({ row, col })
-    setTypingDirection(sameCell ? 'down' : 'across')
-    window.setTimeout(() => {
-      focusMobileInput()
-    }, 0)
+    if (currentSelectedLetter === '__CLEAR__') {
+      placeLetter(row, col, null)
+      return
+    }
+
+    placeLetter(row, col, currentSelectedLetter)
   }
 
   const onCellPointerDown = (event: React.PointerEvent<HTMLButtonElement>, row: number, col: number) => {
-    if (!isCellPlayable(row, col) || hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
+    if (!selectedLetter || hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
       return
     }
 
@@ -648,51 +457,65 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     onCellTap(row, col)
   }
 
-  const handleMobileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!activeCell || hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
-      event.currentTarget.value = ''
+  const startDragLetter = (letter: string) => {
+    if (hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
       return
     }
-
-    const rawValue = event.currentTarget.value
-    event.currentTarget.value = ''
-
-    if (!rawValue) {
-      return
-    }
-
-    const { row, col } = activeCell
-    const firstChar = rawValue
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toUpperCase()
-      .replace(/[^A-Z]/g, '')
-      .slice(0, 1)
-
-    if (!firstChar) {
-      return
-    }
-
-    placeLetter(row, col, firstChar)
+    setDraggingLetter(letter)
+    selectedLetterRef.current = letter
+    setSelectedLetter(letter)
   }
 
-  const handleMobileInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Backspace') {
+  const selectLetter = (letter: string) => {
+    if (hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
       return
     }
 
-    if (!activeCell) {
-      return
-    }
-
-    const { row, col } = activeCell
-    const currentValue = cells[row][col]
-    if (currentValue) {
-      event.preventDefault()
-      placeLetter(row, col, null, { moveForward: false })
-      return
-    }
+    const nextLetter = selectedLetterRef.current === letter ? null : letter
+    selectedLetterRef.current = nextLetter
+    setSelectedLetter(nextLetter)
   }
+
+  const endDragLetter = () => {
+    setDraggingLetter(null)
+  }
+
+  const renderTile = (letter: string) => {
+    const isActive = selectedLetter === letter
+
+    return (
+      <button
+        key={letter}
+        type="button"
+        draggable={false}
+        onDragStart={(event) => {
+          startDragLetter(letter)
+          event.dataTransfer.setData('text/plain', letter)
+        }}
+        onDragEnd={endDragLetter}
+        onPointerDown={() => selectLetter(letter)}
+        onClick={(event) => {
+          if (event.detail === 0) {
+            selectLetter(letter)
+          }
+        }}
+        disabled={hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating}
+        className={`flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-black shadow-sm transition sm:h-11 sm:w-11 ${
+          isActive
+            ? 'border-zinc-900 bg-zinc-900 text-white'
+            : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
+        } disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        {letter === '__CLEAR__' ? '⌫' : letter}
+      </button>
+    )
+  }
+
+  const carouselTiles = useMemo(() => {
+    const fallbackLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+    const baseLetters = letterPool.length > 0 ? letterPool : fallbackLetters
+    return [...baseLetters, '__CLEAR__']
+  }, [letterPool])
 
   const getCellDisplay = (row: number, col: number): string => {
     const value = cells[row][col]
@@ -702,19 +525,16 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     return value
   }
 
-  const isCellActive = (row: number, col: number): boolean =>
-    activeCell?.row === row && activeCell?.col === col
-
-  const isCellInActiveLine = (row: number, col: number): boolean => {
-    if (!activeCell) {
+  const canShowCellHint = (row: number, col: number): boolean => {
+    if (!selectedLetter || selectedLetter === '__CLEAR__') {
       return false
     }
 
-    if (typingDirection === 'across') {
-      return activeCell.row === row
+    if (puzzle.grid[row][col].blocked) {
+      return false
     }
 
-    return activeCell.col === col
+    return !getCellDisplay(row, col)
   }
 
   const podiumDisplay = podium
@@ -812,20 +632,6 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 shadow-lg backdrop-blur sm:p-6">
-      <input
-        ref={mobileInputRef}
-        aria-hidden="true"
-        tabIndex={-1}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="characters"
-        spellCheck={false}
-        inputMode="text"
-        enterKeyHint="done"
-        onChange={handleMobileInputChange}
-        onKeyDown={handleMobileInputKeyDown}
-        className="fixed left-0 top-0 h-px w-px opacity-0 pointer-events-none"
-      />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-xl font-black text-zinc-900 sm:text-2xl">Crucigrama Diario</h2>
@@ -859,9 +665,20 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
           <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-2">
-            
-            <p className="mt-1 text-xs text-zinc-500">
-              Direccion actual: <span className="font-bold">{typingDirection === 'across' ? 'Horizontal' : 'Vertical'}</span>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Letras (arrastra el carrusel y toca para seleccionar)</p>
+            <div className="overflow-x-auto">
+              <div className="flex w-max snap-x snap-mandatory gap-2 px-1 pb-1">
+                {carouselTiles.map((letter, index) => (
+                  <div key={`tile-${letter}-${index}`} className="snap-center">
+                    {renderTile(letter)}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              {selectedLetter
+                ? `Seleccionada: ${selectedLetter === '__CLEAR__' ? 'Borrar' : selectedLetter}`
+                : 'Selecciona una letra para colocarla en el tablero.'}
             </p>
           </div>
 
@@ -886,14 +703,33 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                       data-crossword-cell="true"
                       data-row={rowIndex}
                       data-col={colIndex}
-                      onFocus={() => onCellTap(rowIndex, colIndex)}
-                      onPointerDown={(event) => {
-                        onCellPointerDown(event, rowIndex, colIndex)
-                      }}
+                      onPointerDown={(event) => onCellPointerDown(event, rowIndex, colIndex)}
                       onClick={(event) => {
                         if (event.detail === 0) {
                           onCellTap(rowIndex, colIndex)
                         }
+                      }}
+                      onDragOver={(event) => {
+                        if (hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
+                          return
+                        }
+                        event.preventDefault()
+                      }}
+                      onDrop={(event) => {
+                        if (hasSolvedToday || schemaMissing || isAnimatingCompletion || isValidationAnimating) {
+                          return
+                        }
+                        event.preventDefault()
+                        const letter = event.dataTransfer.getData('text/plain') || draggingLetter
+                        if (!letter) {
+                          return
+                        }
+                        if (letter === '__CLEAR__') {
+                          placeLetter(rowIndex, colIndex, null)
+                        } else {
+                          placeLetter(rowIndex, colIndex, letter)
+                        }
+                        setDraggingLetter(null)
                       }}
                       disabled={hasSolvedToday || schemaMissing || isAnimatingCompletion}
                       className={`relative aspect-square rounded-[4px] border text-center text-sm font-black uppercase text-zinc-900 outline-none transition ${(() => {
@@ -909,15 +745,9 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
                         if (state === 'wrong') {
                           return 'border-rose-500 bg-rose-100 text-rose-900'
                         }
-                        if (isCellActive(rowIndex, colIndex)) {
-                          return 'border-zinc-900 bg-zinc-100 ring-2 ring-zinc-400'
-                        }
-
-                        if (isCellInActiveLine(rowIndex, colIndex)) {
-                          return 'border-zinc-400 bg-zinc-100/80'
-                        }
-
-                        return 'border-zinc-300 bg-white'
+                        return canShowCellHint(rowIndex, colIndex)
+                          ? 'border-zinc-500 bg-zinc-100'
+                          : 'border-zinc-300 bg-white'
                       })()}`}
                     >
                       {cell.number ? (
