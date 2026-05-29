@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { LeaderboardEntry } from '../types'
 import goldMedal from '../assets/oro.png'
 import silverMedal from '../assets/copa-de-plata.png'
@@ -7,14 +8,44 @@ type LeaderboardProps = {
   entries: LeaderboardEntry[]
   title?: string
   showColors?: boolean
+  animationToken?: string
 }
 
-export function Leaderboard({ entries, title = 'Clasificacion general', showColors = true }: LeaderboardProps) {
+export function Leaderboard({ entries, title = 'Clasificacion general', showColors = true, animationToken }: LeaderboardProps) {
   const medalByIndex = [
     { src: goldMedal, alt: 'Medalla de oro', className: 'h-10 w-10 sm:h-12 sm:w-12' },
     { src: silverMedal, alt: 'Medalla de plata', className: 'h-9 w-9 sm:h-11 sm:w-11' },
     { src: bronzeMedal, alt: 'Medalla de bronce', className: 'h-8 w-8 sm:h-10 sm:w-10' },
   ]
+  const [visibleRows, setVisibleRows] = useState(0)
+  const animationKey = animationToken ?? `${title}-${entries.length}`
+
+  useEffect(() => {
+    setVisibleRows(0)
+
+    if (entries.length === 0) {
+      return
+    }
+
+    const startTimeout = window.setTimeout(() => {
+      setVisibleRows(1)
+
+      const intervalId = window.setInterval(() => {
+        setVisibleRows((previous) => {
+          if (previous >= entries.length) {
+            window.clearInterval(intervalId)
+            return previous
+          }
+
+          return previous + 1
+        })
+      }, 300)
+
+      return () => window.clearInterval(intervalId)
+    }, 50)
+
+    return () => window.clearTimeout(startTimeout)
+  }, [animationKey, entries.length])
 
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
@@ -32,11 +63,14 @@ export function Leaderboard({ entries, title = 'Clasificacion general', showColo
           {entries.map((entry, index) => {
             const rank = index + 1
             const medal = medalByIndex[index] ?? null
+            const isVisible = index < visibleRows
 
             return (
               <article
-                key={`${entry.userId}-${rank}`}
-                className="flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 shadow-sm"
+                key={`${animationKey}-${entry.userId}-${rank}`}
+                className={`flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 shadow-sm transition-all duration-300 ease-out will-change-transform ${
+                  isVisible ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
+                }`}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   {medal ? (

@@ -45,6 +45,10 @@ type ResultState = {
 const defaultHsv: HSV = { h: 200, s: 70, v: 70 }
 const WARMUP_START_DATE = '2026-05-06'
 const FIRST_PLAYABLE_DATE = '2026-05-04'
+const HIDDEN_COLOR_GAP_START = '2026-05-13'
+const HIDDEN_COLOR_GAP_END = '2026-05-27'
+const HIDDEN_COLOR_GAP_PREVIOUS_VISIBLE = '2026-05-12'
+const HIDDEN_COLOR_GAP_NEXT_VISIBLE = '2026-05-28'
 const WARMUP_MAX_USES = 3
 const NO_TIMER_USERNAME = 'lara'
 const EVENT_MODE_ENABLED = false
@@ -76,6 +80,10 @@ const randomPracticeHex = (): string => {
   const s = 45 + Math.random() * 50
   const v = 50 + Math.random() * 45
   return hsvToHex({ h, s, v })
+}
+
+const isHiddenColorDate = (dateKey: string): boolean => {
+  return dateKey >= HIDDEN_COLOR_GAP_START && dateKey <= HIDDEN_COLOR_GAP_END
 }
 
 const fallbackUsername = (email: string | null | undefined, userId: string): string => {
@@ -262,6 +270,7 @@ function App() {
   const warmupStorageKey = session ? `warmup-uses:${session.user.id}:${date}` : null
   const isBeforeFirstPlayableViewDate = viewDate < FIRST_PLAYABLE_DATE
   const isColorGameActive = activeGameTab === 'dailyColor'
+  const isDailyLeaderboardBusy = loadingData && stage === 'home' && isColorGameActive
   const isTimedScoreChallenge = isPracticeMode
   const isPreviewStage = stage === 'preview' || stage === 'tournamentPreview'
   const isPickStage = stage === 'pick' || stage === 'tournamentPick'
@@ -1470,8 +1479,8 @@ function App() {
       return
     }
 
-    if (dateToUse > DAILY_LAST_DATE && dateToUse < date) {
-      setErrorText('No hubo reto diario entre el 13/05/2026 y ayer. Usa el 12/05/2026 o el reto de hoy.')
+    if (dateToUse > date) {
+      setErrorText('No se puede jugar un dia futuro.')
       return
     }
 
@@ -1490,24 +1499,27 @@ function App() {
     setStage('preview')
   }
 
-  const goToPreviousViewDate = () => {
-    if (viewDate <= FIRST_PLAYABLE_DATE) {
-      return
+  const getPreviousColorViewDate = (currentDate: string): string => {
+    if (currentDate <= FIRST_PLAYABLE_DATE) {
+      return currentDate
     }
 
-    if (viewDate === date && date > DAILY_LAST_DATE) {
-      setViewDate(DAILY_LAST_DATE)
-      return
+    if (currentDate === HIDDEN_COLOR_GAP_NEXT_VISIBLE) {
+      return HIDDEN_COLOR_GAP_PREVIOUS_VISIBLE
     }
 
-    if (viewDate > DAILY_LAST_DATE && viewDate < date) {
-      setViewDate(DAILY_LAST_DATE)
-      return
-    }
-
-    const previousDate = new Date(viewDate + 'T00:00:00Z')
+    const previousDate = new Date(currentDate + 'T00:00:00Z')
     previousDate.setUTCDate(previousDate.getUTCDate() - 1)
-    setViewDate(previousDate.toISOString().slice(0, 10))
+    const previousDateKey = previousDate.toISOString().slice(0, 10)
+    if (isHiddenColorDate(previousDateKey)) {
+      return HIDDEN_COLOR_GAP_PREVIOUS_VISIBLE
+    }
+
+    return previousDateKey
+  }
+
+  const goToPreviousViewDate = () => {
+    setViewDate(getPreviousColorViewDate(viewDate))
   }
 
   const goToNextViewDate = () => {
@@ -1515,19 +1527,15 @@ function App() {
       return
     }
 
-    if (viewDate === DAILY_LAST_DATE && date > DAILY_LAST_DATE) {
-      setViewDate(date)
-      return
-    }
-
-    if (viewDate > DAILY_LAST_DATE && viewDate < date) {
-      setViewDate(date)
-      return
-    }
-
     const nextDate = new Date(viewDate + 'T00:00:00Z')
     nextDate.setUTCDate(nextDate.getUTCDate() + 1)
-    setViewDate(nextDate.toISOString().slice(0, 10))
+    const nextDateKey = nextDate.toISOString().slice(0, 10)
+    if (isHiddenColorDate(nextDateKey)) {
+      setViewDate(HIDDEN_COLOR_GAP_NEXT_VISIBLE)
+      return
+    }
+
+    setViewDate(nextDateKey)
   }
 
   const beginTournamentDuel = (matchId: string) => {
@@ -1928,32 +1936,54 @@ function App() {
         {stage === 'home' && isColorGameActive && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
-                <button
-                  type="button"
-                  disabled={viewDate <= FIRST_PLAYABLE_DATE}
-                  onClick={goToPreviousViewDate}
-                  className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
-                  aria-label="Dia anterior"
+              <div className={`relative overflow-hidden rounded-3xl transition-[opacity,transform,filter] duration-300 ease-out ${isDailyLeaderboardBusy ? 'opacity-70 blur-[1px] saturate-90' : 'opacity-100'}`} aria-busy={isDailyLeaderboardBusy}>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
+                    <button
+                      type="button"
+                      disabled={viewDate <= FIRST_PLAYABLE_DATE}
+                      onClick={goToPreviousViewDate}
+                      className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                      aria-label="Dia anterior"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-sm font-semibold text-zinc-700 transition-all duration-300 ease-out">
+                      {displayDate}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={viewDate >= date}
+                      onClick={goToNextViewDate}
+                      className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                      aria-label="Dia siguiente"
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <Leaderboard
+                    key={viewDate}
+                    entries={dailyLeaderboard}
+                    title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
+                    showColors={viewDate < date || hasPlayedOnViewDate}
+                    animationToken={viewDate}
+                  />
+                </div>
+
+                <div
+                  className={`pointer-events-none absolute inset-0 rounded-3xl border border-white/50 bg-white/55 p-4 shadow-inner backdrop-blur-sm transition-opacity duration-300 ease-out ${isDailyLeaderboardBusy ? 'opacity-100' : 'opacity-0'}`}
+                  aria-hidden="true"
                 >
-                  ‹
-                </button>
-                <span className="text-sm font-semibold text-zinc-700">{displayDate}</span>
-                <button
-                  type="button"
-                  disabled={viewDate >= date}
-                  onClick={goToNextViewDate}
-                  className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
-                  aria-label="Dia siguiente"
-                >
-                  ›
-                </button>
+                  <div className="flex h-full flex-col justify-center gap-3">
+                    <div className="h-4 w-40 rounded-full bg-zinc-200/90" />
+                    <div className="space-y-2">
+                      <div className="h-14 rounded-2xl bg-zinc-200/70 animate-pulse" />
+                      <div className="h-14 rounded-2xl bg-zinc-200/60 animate-pulse" />
+                      <div className="h-14 rounded-2xl bg-zinc-200/50 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <Leaderboard
-                entries={dailyLeaderboard}
-                title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
-                showColors={viewDate < date || hasPlayedOnViewDate}
-              />
             </div>
 
             {/* Tabla general ocultada por ahora para no mostrarla en UI.
@@ -2109,11 +2139,6 @@ function App() {
           </>
         )}
 
-        {loadingData && stage === 'home' && (
-          <p className="rounded-xl border border-dashed border-zinc-400 p-3 text-center text-zinc-600">
-            Cargando leaderboard...
-          </p>
-        )}
       </main>
     </div>
   )
