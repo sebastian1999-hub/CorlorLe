@@ -1936,55 +1936,43 @@ function App() {
         {stage === 'home' && isColorGameActive && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className={`relative overflow-hidden rounded-3xl transition-[opacity,transform,filter] duration-300 ease-out ${isDailyLeaderboardBusy ? 'opacity-70 blur-[1px] saturate-90' : 'opacity-100'}`} aria-busy={isDailyLeaderboardBusy}>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
-                    <button
-                      type="button"
-                      disabled={viewDate <= FIRST_PLAYABLE_DATE}
-                      onClick={goToPreviousViewDate}
-                      className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
-                      aria-label="Dia anterior"
-                    >
-                      ‹
-                    </button>
-                    <span className="text-sm font-semibold text-zinc-700 transition-all duration-300 ease-out">
-                      {displayDate}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={viewDate >= date}
-                      onClick={goToNextViewDate}
-                      className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
-                      aria-label="Dia siguiente"
-                    >
-                      ›
-                    </button>
-                  </div>
-                  <Leaderboard
-                    key={viewDate}
-                    entries={dailyLeaderboard}
-                    title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
-                    showColors={viewDate < date || hasPlayedOnViewDate}
-                    animationToken={viewDate}
-                  />
+              <div className="space-y-2" aria-busy={isDailyLeaderboardBusy}>
+                <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
+                  <button
+                    type="button"
+                    disabled={viewDate <= FIRST_PLAYABLE_DATE}
+                    onClick={goToPreviousViewDate}
+                    className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                    aria-label="Dia anterior"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-sm font-semibold text-zinc-700 transition-all duration-300 ease-out">
+                    {displayDate}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={viewDate >= date}
+                    onClick={goToNextViewDate}
+                    className="rounded-lg px-3 py-1 text-lg font-bold text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-30"
+                    aria-label="Dia siguiente"
+                  >
+                    ›
+                  </button>
                 </div>
-
-                <div
-                  className={`pointer-events-none absolute inset-0 rounded-3xl border border-white/50 bg-white/55 p-4 shadow-inner backdrop-blur-sm transition-opacity duration-300 ease-out ${isDailyLeaderboardBusy ? 'opacity-100' : 'opacity-0'}`}
-                  aria-hidden="true"
-                >
-                  <div className="flex h-full flex-col justify-center gap-3">
-                    <div className="h-4 w-40 rounded-full bg-zinc-200/90" />
-                    <div className="space-y-2">
-                      <div className="h-14 rounded-2xl bg-zinc-200/70 animate-pulse" />
-                      <div className="h-14 rounded-2xl bg-zinc-200/60 animate-pulse" />
-                      <div className="h-14 rounded-2xl bg-zinc-200/50 animate-pulse" />
-                    </div>
-                  </div>
+                <div className={`flex items-center gap-2 px-1 text-xs text-zinc-500 transition-opacity duration-200 ${isDailyLeaderboardBusy ? 'opacity-100' : 'opacity-0'}`}>
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-pulse" />
+                  <span>Cargando clasificacion...</span>
                 </div>
-              </div>
+                <Leaderboard
+                  key={viewDate}
+                  entries={dailyLeaderboard}
+                  title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
+                  showColors={viewDate < date || hasPlayedOnViewDate}
+                  animationToken={viewDate}
+                />
             </div>
+          </div>
 
             {/* Tabla general ocultada por ahora para no mostrarla en UI.
             {leaderboardTab === 'general' && (
