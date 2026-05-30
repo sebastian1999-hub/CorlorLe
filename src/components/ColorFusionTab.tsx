@@ -186,6 +186,9 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const puzzle = useMemo(() => buildDailyPuzzle(dateKey), [dateKey])
   const [rowColors, setRowColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   const [colColors, setColColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
+  // Animación de relleno
+  const [animating, setAnimating] = useState<{ type: 'row' | 'col'; index: number; color: string } | null>(null)
+  const [animationStep, setAnimationStep] = useState(0)
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   // No validaciones, todo es reactivo
@@ -193,25 +196,39 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const confettiRef = useRef<HTMLDivElement>(null)
 
   const applyColor = (color: string) => {
-    if (!selectedTarget) {
-      return
-    }
-
-    if (selectedTarget.type === 'row') {
-      setRowColors((previous) => {
-        const next = [...previous]
-        next[selectedTarget.index] = color
-        return next
-      })
-      return
-    }
-
-    setColColors((previous) => {
-      const next = [...previous]
-      next[selectedTarget.index] = color
-      return next
-    })
+    if (!selectedTarget) return
+    setAnimating({ type: selectedTarget.type, index: selectedTarget.index, color })
+    setAnimationStep(0)
   }
+
+  // Animación smooth de relleno
+  useEffect(() => {
+    if (!animating) return
+    const size = puzzle.size
+    if (animationStep >= size) {
+      // Al terminar, aplica el color a toda la fila/columna
+      if (animating.type === 'row') {
+        setRowColors((prev) => {
+          const next = [...prev]
+          next[animating.index] = animating.color
+          return next
+        })
+      } else {
+        setColColors((prev) => {
+          const next = [...prev]
+          next[animating.index] = animating.color
+          return next
+        })
+      }
+      setAnimating(null)
+      setAnimationStep(0)
+      return
+    }
+    const timeout = setTimeout(() => {
+      setAnimationStep((step) => step + 1)
+    }, 45)
+    return () => clearTimeout(timeout)
+  }, [animating, animationStep, puzzle.size])
 
   const openPalette = (target: Target) => {
     setSelectedTarget(target)
@@ -231,6 +248,22 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   }
 
   const getPlayCellColor = (row: number, col: number): string => {
+    // Si está animando, mostrar el color progresivamente
+    if (animating) {
+      if (animating.type === 'row' && row === animating.index && col < animationStep) {
+        // Animando fila
+        const colColor = colColors[col]
+        if (!colColor) return '#E5E7EB'
+        return mixColors(animating.color, colColor)
+      }
+      if (animating.type === 'col' && col === animating.index && row < animationStep) {
+        // Animando columna
+        const rowColor = rowColors[row]
+        if (!rowColor) return '#E5E7EB'
+        return mixColors(rowColor, animating.color)
+      }
+    }
+    // Normal
     const rowColor = rowColors[row]
     const colColor = colColors[col]
     if (!rowColor || !colColor) {
