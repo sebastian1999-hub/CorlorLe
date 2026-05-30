@@ -265,10 +265,12 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
     // Normal
     const rowColor = rowColors[row]
     const colColor = colColors[col]
-    if (!rowColor || !colColor) {
-      return '#E5E7EB'
+    if (rowColor && colColor) {
+      return mixColors(rowColor, colColor)
     }
-    return mixColors(rowColor, colColor)
+    if (rowColor) return rowColor
+    if (colColor) return colColor
+    return '#E5E7EB'
   }
 
   // Chequeo de completado
