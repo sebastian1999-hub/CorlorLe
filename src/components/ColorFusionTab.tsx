@@ -213,13 +213,9 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         const pending = pendingColorRef.current
         if (!pending) return
         if (pending.type === 'row') {
-          setRowColors((prev) => prev.map((c, i) => i === pending.index ? pending.color : c))
-          // Rellenar toda la fila con el color seleccionado
-          setColColors((prev) => prev.map((c) => c ?? null)) // No cambiar columnas
+          setRowColors((prev) => prev.map(() => pending.color))
         } else {
-          setColColors((prev) => prev.map((c, i) => i === pending.index ? pending.color : c))
-          // Rellenar toda la columna con el color seleccionado
-          setRowColors((prev) => prev.map((c) => c ?? null)) // No cambiar filas
+          setColColors((prev) => prev.map(() => pending.color))
         }
         setAnimating(null)
         setAnimationStep(0)
