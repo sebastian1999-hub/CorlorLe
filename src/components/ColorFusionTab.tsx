@@ -213,9 +213,9 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         const pending = pendingColorRef.current
         if (!pending) return
         if (pending.type === 'row') {
-          setRowColors((prev) => prev.map(() => pending.color))
+          setRowColors((prev) => prev.map((c, i) => i === pending.index ? pending.color : c))
         } else {
-          setColColors((prev) => prev.map(() => pending.color))
+          setColColors((prev) => prev.map((c, i) => i === pending.index ? pending.color : c))
         }
         setAnimating(null)
         setAnimationStep(0)
