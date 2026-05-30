@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
+import { ColorFusionTab } from './components/ColorFusionTab'
 import { CrosswordTab } from './components/CrosswordTab'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
@@ -54,6 +55,8 @@ const NO_TIMER_USERNAME = 'lara'
 const EVENT_MODE_ENABLED = false
 const WARMUP_ENABLED = false
 const RECORDS_ENABLED = false
+const CRUCIGAMA_LABEL = 'CruciGama'
+const CRUCIGAMA_GRADIENT = ['#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7']
 
 type TournamentMatchView = {
   id: string
@@ -1925,7 +1928,16 @@ function App() {
                     : 'bg-white text-zinc-600 hover:text-zinc-900'
                 }`}
               >
-                Adivina el personaje de animacion
+                <span aria-label="CruciGama" className="inline-flex items-center gap-[1px]">
+                  {CRUCIGAMA_LABEL.split('').map((char, index) => (
+                    <span
+                      key={`crucigama-char-${index}`}
+                      style={{ color: CRUCIGAMA_GRADIENT[Math.min(index, CRUCIGAMA_GRADIENT.length - 1)] }}
+                    >
+                      {char}
+                    </span>
+                  ))}
+                </span>
               </button>
             </nav>
           </div>
@@ -2000,9 +2012,7 @@ function App() {
         )}
 
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
-          <section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-6 shadow-lg backdrop-blur sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Proximamente</p>
-          </section>
+          <ColorFusionTab dateKey={date} />
         )}
 
         {isPreviewStage && difficulty && (
