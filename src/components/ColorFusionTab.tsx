@@ -181,6 +181,7 @@ const buildDailyPuzzle = (dateKey: string): FusionPuzzle => {
   }
 }
 
+
 export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const puzzle = useMemo(() => buildDailyPuzzle(dateKey), [dateKey])
   const [rowColors, setRowColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
@@ -188,7 +189,8 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   const [validationUses, setValidationUses] = useState(0)
-  const [revealedPlayCells, setRevealedPlayCells] = useState<Set<string>>(new Set())
+  // Map cellKey -> { rowColor, colColor } frozen at validation
+  const [revealedCellColors, setRevealedCellColors] = useState<Record<string, { rowColor: string|null, colColor: string|null }>>({})
 
   const applyColor = (color: string) => {
     if (!selectedTarget) {
@@ -229,10 +231,17 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
 
     revealRows.forEach((row, rowIndex) => {
       window.setTimeout(() => {
-        setRevealedPlayCells((previous) => {
-          const next = new Set(previous)
+        setRevealedCellColors((previous) => {
+          const next = { ...previous }
           for (let col = 0; col < puzzle.size; col += 1) {
-            next.add(cellKey(row, col))
+            const key = cellKey(row, col)
+            // Only freeze if not already revealed
+            if (!(key in next)) {
+              next[key] = {
+                rowColor: rowColors[row],
+                colColor: colColors[col],
+              }
+            }
           }
           return next
         })
@@ -252,16 +261,14 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
 
   const getPlayCellColor = (row: number, col: number): string => {
     const key = cellKey(row, col)
-    if (!revealedPlayCells.has(key)) {
+    const frozen = revealedCellColors[key]
+    if (!frozen) {
       return '#FFFFFF'
     }
-
-    const rowColor = rowColors[row]
-    const colColor = colColors[col]
+    const { rowColor, colColor } = frozen
     if (!rowColor || !colColor) {
       return '#E5E7EB'
     }
-
     return mixColors(rowColor, colColor)
   }
 
