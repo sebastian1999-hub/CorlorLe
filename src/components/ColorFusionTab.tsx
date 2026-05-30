@@ -214,8 +214,12 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         if (!pending) return
         if (pending.type === 'row') {
           setRowColors((prev) => prev.map((c, i) => i === pending.index ? pending.color : c))
+          // Rellenar toda la fila con el color seleccionado
+          setColColors((prev) => prev.map((c) => c ?? null)) // No cambiar columnas
         } else {
           setColColors((prev) => prev.map((c, i) => i === pending.index ? pending.color : c))
+          // Rellenar toda la columna con el color seleccionado
+          setRowColors((prev) => prev.map((c) => c ?? null)) // No cambiar filas
         }
         setAnimating(null)
         setAnimationStep(0)
