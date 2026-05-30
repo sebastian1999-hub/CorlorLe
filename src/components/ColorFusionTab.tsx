@@ -275,57 +275,6 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
           </div>
         </div>
       )}
-      // ConfettiExplosion: simple CSS confetti burst
-      function ConfettiExplosion() {
-        // 18 confetti pieces, random color/angle
-        const colors = [
-          '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
-          '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981'
-        ]
-        const confetti = Array.from({ length: 18 }, (_, i) => {
-          const angle = Math.random() * 360
-          const dist = 80 + Math.random() * 60
-          const x = Math.cos(angle) * dist
-          const y = Math.sin(angle) * dist
-          const color = colors[i % colors.length]
-          const delay = Math.random() * 0.2
-          return (
-            <span
-              key={i}
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: '50%',
-                width: 14,
-                height: 14,
-                background: color,
-                borderRadius: 3,
-                transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${angle}deg)`,
-                opacity: 0.85,
-                animation: `confetti-pop 0.7s cubic-bezier(.61,1.6,.7,1) ${delay}s both`,
-                zIndex: 100,
-              }}
-            />
-          )
-        })
-        return <>{confetti}
-          <style>{`
-            @keyframes confetti-pop {
-              0% { opacity: 0; transform: translate(-50%,-50%) scale(0.5); }
-              60% { opacity: 1; }
-              100% { opacity: 0; transform: translate(-50%,-50%) scale(1.2); }
-            }
-            .animate-pop {
-              animation: pop-scale 0.7s cubic-bezier(.61,1.6,.7,1);
-            }
-            @keyframes pop-scale {
-              0% { transform: scale(0.7); }
-              80% { transform: scale(1.1); }
-              100% { transform: scale(1); }
-            }
-          `}</style>
-        </>
-      }
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-black sm:text-2xl" aria-label="CruciGama">
@@ -502,4 +451,56 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
       {/* Sin botón de validar, cuadrícula reactiva */}
     </section>
   )
+}
+
+// ConfettiExplosion: simple CSS confetti burst
+function ConfettiExplosion() {
+  // 18 confetti pieces, random color/angle
+  const colors = [
+    '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
+    '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981'
+  ]
+  const confetti = Array.from({ length: 18 }, (_, i) => {
+    const angle = Math.random() * 360
+    const dist = 80 + Math.random() * 60
+    const x = Math.cos(angle) * dist
+    const y = Math.sin(angle) * dist
+    const color = colors[i % colors.length]
+    const delay = Math.random() * 0.2
+    return (
+      <span
+        key={i}
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          width: 14,
+          height: 14,
+          background: color,
+          borderRadius: 3,
+          transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${angle}deg)`,
+          opacity: 0.85,
+          animation: `confetti-pop 0.7s cubic-bezier(.61,1.6,.7,1) ${delay}s both`,
+          zIndex: 100,
+        }}
+      />
+    )
+  })
+  return <>{confetti}
+    <style>{`
+      @keyframes confetti-pop {
+        0% { opacity: 0; transform: translate(-50%,-50%) scale(0.5); }
+        60% { opacity: 1; }
+        100% { opacity: 0; transform: translate(-50%,-50%) scale(1.2); }
+      }
+      .animate-pop {
+        animation: pop-scale 0.7s cubic-bezier(.61,1.6,.7,1);
+      }
+      @keyframes pop-scale {
+        0% { transform: scale(0.7); }
+        80% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+    `}</style>
+  </>
 }
