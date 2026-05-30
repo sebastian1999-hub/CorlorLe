@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, useEffect, useRef } from 'react'
 import { hexToRgb, rgbToHex } from '../lib/colorMath'
 
 type ColorFusionTabProps = {
@@ -189,6 +189,8 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   // No validaciones, todo es reactivo
+  const [isComplete, setIsComplete] = useState(false)
+  const confettiRef = useRef<HTMLDivElement>(null)
 
   const applyColor = (color: string) => {
     if (!selectedTarget) {
@@ -237,8 +239,94 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
     return mixColors(rowColor, colColor)
   }
 
+  // Chequeo de completado
+  useEffect(() => {
+    let allOk = true
+    for (let row = 0; row < puzzle.size; row++) {
+      for (let col = 0; col < puzzle.size; col++) {
+        const key = `${row}-${col}`
+        if (puzzle.clues.has(key)) {
+          // Solo comparar donde hay pista
+          const expected = puzzle.clues.get(key)
+          const actual = getPlayCellColor(row, col)
+          if (expected?.toLowerCase() !== actual?.toLowerCase()) {
+            allOk = false
+            break
+          }
+        }
+      }
+      if (!allOk) break
+    }
+    setIsComplete(allOk)
+  }, [rowColors, colColors, puzzle])
+
   return (
-    <section className="rounded-3xl border border-zinc-900/10 bg-white/90 p-4 shadow-lg backdrop-blur sm:p-6">
+    <section className="rounded-3xl border border-zinc-900/10 bg-white/90 p-4 shadow-lg backdrop-blur sm:p-6 relative overflow-visible">
+      {/* Mensaje de completado con explosión de colores */}
+      {isComplete && (
+        <div ref={confettiRef} className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
+          <div className="relative">
+            <span className="block text-3xl sm:text-5xl font-extrabold text-white drop-shadow-lg px-8 py-6 rounded-3xl animate-pop bg-gradient-to-br from-pink-400 via-yellow-300 to-green-400 border-4 border-white shadow-2xl">
+              ¡Completado!
+            </span>
+            <div className="absolute inset-0 overflow-visible">
+              {/* Confetti CSS */}
+              <ConfettiExplosion />
+            </div>
+          </div>
+        </div>
+      )}
+      // ConfettiExplosion: simple CSS confetti burst
+      function ConfettiExplosion() {
+        // 18 confetti pieces, random color/angle
+        const colors = [
+          '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
+          '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981'
+        ]
+        const confetti = Array.from({ length: 18 }, (_, i) => {
+          const angle = Math.random() * 360
+          const dist = 80 + Math.random() * 60
+          const x = Math.cos(angle) * dist
+          const y = Math.sin(angle) * dist
+          const color = colors[i % colors.length]
+          const delay = Math.random() * 0.2
+          return (
+            <span
+              key={i}
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: 14,
+                height: 14,
+                background: color,
+                borderRadius: 3,
+                transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${angle}deg)`,
+                opacity: 0.85,
+                animation: `confetti-pop 0.7s cubic-bezier(.61,1.6,.7,1) ${delay}s both`,
+                zIndex: 100,
+              }}
+            />
+          )
+        })
+        return <>{confetti}
+          <style>{`
+            @keyframes confetti-pop {
+              0% { opacity: 0; transform: translate(-50%,-50%) scale(0.5); }
+              60% { opacity: 1; }
+              100% { opacity: 0; transform: translate(-50%,-50%) scale(1.2); }
+            }
+            .animate-pop {
+              animation: pop-scale 0.7s cubic-bezier(.61,1.6,.7,1);
+            }
+            @keyframes pop-scale {
+              0% { transform: scale(0.7); }
+              80% { transform: scale(1.1); }
+              100% { transform: scale(1); }
+            }
+          `}</style>
+        </>
+      }
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-black sm:text-2xl" aria-label="CruciGama">
