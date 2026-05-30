@@ -393,54 +393,52 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
       </div>
       </div>
 
-      <div
-        className={`mt-4 transition-all duration-300 ease-out ${
-          isPaletteOpen ? 'max-h-[520px] opacity-100' : 'pointer-events-none max-h-0 opacity-0'
-        }`}
-        aria-hidden={!isPaletteOpen}
-      >
+      {isPaletteOpen && (
         <div
-          className={`fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl transition-transform duration-300 ease-out sm:inset-x-6 md:static md:inset-auto md:bottom-auto md:shadow-sm ${
-            isPaletteOpen ? 'translate-y-0 scale-100' : 'translate-y-3 scale-95'
-          }`}
+          className="mt-4 transition-all duration-300 ease-out max-h-[520px] opacity-100"
+          aria-hidden={false}
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              {selectedTarget ? (selectedTarget.type === 'row' ? `Fila ${selectedTarget.index + 1}` : `Columna ${selectedTarget.index + 1}`) : ''}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsPaletteOpen(false)}
-              className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100"
-              aria-label="Cerrar paleta"
-            >
-              ×
-            </button>
-          </div>
+          <div
+            className="fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl transition-transform duration-300 ease-out sm:inset-x-6 md:static md:inset-auto md:bottom-auto md:shadow-sm translate-y-0 scale-100"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                {selectedTarget ? (selectedTarget.type === 'row' ? `Fila ${selectedTarget.index + 1}` : `Columna ${selectedTarget.index + 1}`) : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPaletteOpen(false)}
+                className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100"
+                aria-label="Cerrar paleta"
+              >
+                ×
+              </button>
+            </div>
 
-          <div className="space-y-2">
-            {['Neutros', 'Rojos', 'Naranjas', 'Amarillos', 'Verdes', 'Azules', 'Morados'].map((group) => (
-              <div key={`palette-row-${group}`} className="flex flex-wrap gap-2">
-                {PALETTE_OPTIONS
-                  .filter((option) => option.group === group)
-                  .map((option) => (
-                    <button
-                      key={`${group}-${option.hex}`}
-                      type="button"
-                      onClick={() => {
-                        applyColor(option.hex)
-                        setIsPaletteOpen(false)
-                      }}
-                      className="h-9 w-9 rounded border border-zinc-300 transition hover:scale-105 sm:h-8 sm:w-8"
-                      style={{ backgroundColor: option.hex }}
-                      title={option.hex.toUpperCase()}
-                    />
-                  ))}
-              </div>
-            ))}
+            <div className="space-y-2">
+              {['Neutros', 'Rojos', 'Naranjas', 'Amarillos', 'Verdes', 'Azules', 'Morados'].map((group) => (
+                <div key={`palette-row-${group}`} className="flex flex-wrap gap-2">
+                  {PALETTE_OPTIONS
+                    .filter((option) => option.group === group)
+                    .map((option) => (
+                      <button
+                        key={`${group}-${option.hex}`}
+                        type="button"
+                        onClick={() => {
+                          applyColor(option.hex)
+                          setIsPaletteOpen(false)
+                        }}
+                        className="h-9 w-9 rounded border border-zinc-300 transition hover:scale-105 sm:h-8 sm:w-8"
+                        style={{ backgroundColor: option.hex }}
+                        title={option.hex.toUpperCase()}
+                      />
+                    ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
