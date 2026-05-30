@@ -16,7 +16,7 @@ type FusionPuzzle = {
   solvedCols: string[]
 }
 
-const MAX_VALIDATIONS = 2
+//
 const CRUCIGAMA_LABEL = 'CruciGama'
 const CRUCIGAMA_GRADIENT = ['#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7']
 
@@ -270,7 +270,6 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
               ¡Completado!
             </span>
             <div className="absolute inset-0 overflow-visible">
-              {/* Confetti CSS */}
               <ConfettiExplosion />
             </div>
           </div>
