@@ -188,9 +188,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const [colColors, setColColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
-  const [validationUses, setValidationUses] = useState(0)
-  // Map cellKey -> { rowColor, colColor } frozen at validation
-  const [revealedCellColors, setRevealedCellColors] = useState<Record<string, { rowColor: string|null, colColor: string|null }>>({})
+  // No validaciones, todo es reactivo
 
   const applyColor = (color: string) => {
     if (!selectedTarget) {
@@ -218,36 +216,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
     setIsPaletteOpen(true)
   }
 
-  const runValidation = () => {
-    if (validationUses >= MAX_VALIDATIONS) {
-      return
-    }
-
-    const nextUse = validationUses + 1
-    setValidationUses(nextUse)
-
-    const rowDelayMs = 130
-    const revealRows = Array.from({ length: puzzle.size }, (_, i) => i)
-
-    revealRows.forEach((row, rowIndex) => {
-      window.setTimeout(() => {
-        setRevealedCellColors((previous) => {
-          const next = { ...previous }
-          for (let col = 0; col < puzzle.size; col += 1) {
-            const key = cellKey(row, col)
-            // Only freeze if not already revealed
-            if (!(key in next)) {
-              next[key] = {
-                rowColor: rowColors[row],
-                colColor: colColors[col],
-              }
-            }
-          }
-          return next
-        })
-      }, rowIndex * rowDelayMs)
-    })
-  }
+  // No runValidation, todo es reactivo
 
   const getObjectiveCellColor = (row: number, col: number): string => {
     const key = cellKey(row, col)
@@ -260,12 +229,8 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   }
 
   const getPlayCellColor = (row: number, col: number): string => {
-    const key = cellKey(row, col)
-    const frozen = revealedCellColors[key]
-    if (!frozen) {
-      return '#FFFFFF'
-    }
-    const { rowColor, colColor } = frozen
+    const rowColor = rowColors[row]
+    const colColor = colColors[col]
     if (!rowColor || !colColor) {
       return '#E5E7EB'
     }
@@ -289,7 +254,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
             </span>
           </h2>
         </div>
-        <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600">{Math.max(0, MAX_VALIDATIONS - validationUses)}/{MAX_VALIDATIONS}</p>
+        {/* Sin contador de validaciones */}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -447,16 +412,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={runValidation}
-          disabled={validationUses >= MAX_VALIDATIONS}
-          className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Validar ({Math.max(0, MAX_VALIDATIONS - validationUses)}/{MAX_VALIDATIONS})
-        </button>
-      </div>
+      {/* Sin botón de validar, cuadrícula reactiva */}
     </section>
   )
 }
