@@ -487,7 +487,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
 }
 
 // ConfettiExplosion: simple CSS confetti burst
-import { useMemo } from 'react'
+// ...existing code...
 
 function ConfettiExplosion() {
   // 18 confetti pieces, random color/angle, pero estables
