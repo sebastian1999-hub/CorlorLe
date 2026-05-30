@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:test-users": "node scripts/create-test-users.mjs",
-    "sync:wiktionary-es": "node scripts/sync-wiktionary-es.mjs"
+    "sync:wiktionary-es": "node scripts/sync-wiktionary-es.mjs",
+    "sync:rae-dictionary": "node scripts/sync-rae-dictionary.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

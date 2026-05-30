@@ -212,3 +212,43 @@ create policy "Users can insert own tournament match prediction"
 on public.tournament_match_predictions for insert
 to authenticated
 with check (auth.uid() = voter_user_id);
+
+-- Dictionary entries for crossword generation.
+create table if not exists public.crossword_dictionary (
+  word text primary key check (word ~ '^[A-Z]{3,11}$'),
+  clue text not null check (char_length(clue) between 5 and 180),
+  category text,
+  source text not null default 'manual',
+  source_word text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists crossword_dictionary_is_active_idx
+  on public.crossword_dictionary(is_active);
+
+create index if not exists crossword_dictionary_word_length_idx
+  on public.crossword_dictionary((char_length(word)));
+
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists crossword_dictionary_touch_updated_at on public.crossword_dictionary;
+create trigger crossword_dictionary_touch_updated_at
+before update on public.crossword_dictionary
+for each row execute function public.touch_updated_at();
+
+alter table public.crossword_dictionary enable row level security;
+
+drop policy if exists "Crossword dictionary is publicly readable" on public.crossword_dictionary;
+create policy "Crossword dictionary is publicly readable"
+on public.crossword_dictionary for select
+using (true);

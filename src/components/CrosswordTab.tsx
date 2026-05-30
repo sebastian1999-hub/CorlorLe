@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { buildDailyCrossword, type CrosswordCell, type CrosswordClue } from '../lib/crossword.ts'
+import { buildDailyCrossword, buildDailyCrosswordFromWordList, type CrosswordCell, type CrosswordClue } from '../lib/crossword.ts'
 import { supabase } from '../lib/supabase'
 import goldMedal from '../assets/oro.png'
 import silverMedal from '../assets/copa-de-plata.png'
@@ -22,6 +22,11 @@ type PodiumEntry = {
 type CellFeedback = 'none' | 'correct' | 'wrong'
 type ValidationPhase = 'idle' | 'reveal' | 'clear'
 
+type DictionaryRow = {
+  word: string
+  clue: string
+}
+
 const MAX_CHECKS = 2
 
 const formatSeconds = (value: number): string => {
@@ -32,7 +37,59 @@ const formatSeconds = (value: number): string => {
 }
 
 export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: CrosswordTabProps) {
-  const puzzle = useMemo(() => buildDailyCrossword(dateKey), [dateKey])
+  const [remoteDictionary, setRemoteDictionary] = useState<DictionaryRow[]>([])
+
+  const todayDateKey = useMemo(() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }, [])
+
+  const shouldUseRemoteDictionary = dateKey > todayDateKey
+
+  useEffect(() => {
+    if (!shouldUseRemoteDictionary) {
+      return
+    }
+
+    let isMounted = true
+
+    const loadDictionary = async () => {
+      const { data, error } = await supabase
+        .from('crossword_dictionary')
+        .select('word,clue')
+        .eq('is_active', true)
+        .limit(5000)
+
+      if (!isMounted) {
+        return
+      }
+
+      if (error) {
+        setRemoteDictionary([])
+        return
+      }
+
+      const rows = (data ?? []) as DictionaryRow[]
+      setRemoteDictionary(rows)
+    }
+
+    void loadDictionary()
+
+    return () => {
+      isMounted = false
+    }
+  }, [shouldUseRemoteDictionary])
+
+  const puzzle = useMemo(() => {
+    const effectiveRemoteDictionary = shouldUseRemoteDictionary ? remoteDictionary : []
+    if (effectiveRemoteDictionary.length >= 24) {
+      return buildDailyCrosswordFromWordList(dateKey, effectiveRemoteDictionary)
+    }
+    return buildDailyCrossword(dateKey)
+  }, [dateKey, remoteDictionary, shouldUseRemoteDictionary])
   const letterPool = useMemo(() => {
     const letters = new Set<string>()
     for (const row of puzzle.grid) {

@@ -75,6 +75,29 @@ npm run seed:test-users
 
 La pantalla de autenticacion quedo en modo solo login para pruebas (registro desactivado).
 
+## Cargar diccionario desde RAE API
+
+Se incluye el script [scripts/sync-rae-dictionary.mjs](scripts/sync-rae-dictionary.mjs) para poblar una tabla de palabras para crucigramas con pistas reales.
+
+Pasos:
+
+1. Ejecuta [supabase/schema.sql](supabase/schema.sql) para crear la tabla `crossword_dictionary`.
+2. Agrega estas variables en tu `.env`:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `RAE_API_KEY` (opcional, recomendado para subir cuota)
+- `RAE_TARGET_WORDS` (opcional, por defecto `1200`)
+- `RAE_REQUEST_DELAY_MS` (opcional, por defecto `220`)
+
+3. Ejecuta:
+
+```bash
+npm run sync:rae-dictionary
+```
+
+El script deduplica por palabra normalizada (A-Z), filtra longitud 3-11 y hace upsert en Supabase.
+
 ## Modelo de datos
 
 Tabla principal: `attempts`

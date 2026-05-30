@@ -33,6 +33,8 @@ type WordEntry = {
   clue: string
 }
 
+export type CrosswordWordEntry = WordEntry
+
 type GridCell = {
   blocked: boolean
   letter: string | null
@@ -526,12 +528,12 @@ function scoreLayout(entries: LayoutResultEntry[]): number {
   )
 }
 
-function tryGenerateLayout(dateKey: string): LayoutResultEntry[] | null {
+function tryGenerateLayout(dateKey: string, wordPool: WordEntry[]): LayoutResultEntry[] | null {
   const seed = hashDate(dateKey)
   const rng = createRng(seed)
   const startTs = Date.now()
 
-  const cleanedWords = WORDS.map((entry) => ({
+  const cleanedWords = wordPool.map((entry) => ({
     answer: normalizeAnswer(entry.word),
     clue: entry.clue,
   })).filter((entry) => entry.answer.length >= 3 && entry.answer.length <= GRID_SIZE)
@@ -768,7 +770,7 @@ export function buildDailyCrossword(dateKey: string): CrosswordPuzzle {
     return cached
   }
 
-  const layout = tryGenerateLayout(dateKey)
+  const layout = tryGenerateLayout(dateKey, WORDS)
   if (layout) {
     const puzzle = buildPuzzleFromLayout(dateKey, layout)
     puzzleCache.set(dateKey, puzzle)
@@ -793,4 +795,24 @@ export function buildDailyCrossword(dateKey: string): CrosswordPuzzle {
 
   puzzleCache.set(dateKey, fallbackPuzzle)
   return fallbackPuzzle
+}
+
+export function buildDailyCrosswordFromWordList(dateKey: string, wordList: CrosswordWordEntry[]): CrosswordPuzzle {
+  const sanitized = wordList
+    .map((entry) => ({
+      word: normalizeAnswer(entry.word),
+      clue: String(entry.clue || '').trim(),
+    }))
+    .filter((entry) => entry.word.length >= 3 && entry.word.length <= GRID_SIZE && entry.clue.length > 0)
+
+  if (sanitized.length < 24) {
+    return buildDailyCrossword(dateKey)
+  }
+
+  const layout = tryGenerateLayout(dateKey, sanitized)
+  if (layout) {
+    return buildPuzzleFromLayout(dateKey, layout)
+  }
+
+  return buildDailyCrossword(dateKey)
 }
