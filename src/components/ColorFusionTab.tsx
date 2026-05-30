@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, useEffect, useRef } from 'react'
+import { Fragment, useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { hexToRgb, rgbToHex } from '../lib/colorMath'
 
 type ColorFusionTabProps = {
@@ -189,39 +189,46 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   // Animación de relleno
   const [animating, setAnimating] = useState<{ type: 'row' | 'col'; index: number; color: string } | null>(null)
   const [animationStep, setAnimationStep] = useState(0)
+  const pendingColorRef = useRef<{ type: 'row' | 'col'; index: number; color: string } | null>(null)
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   // No validaciones, todo es reactivo
   const [isComplete, setIsComplete] = useState(false)
   const confettiRef = useRef<HTMLDivElement>(null)
 
-  const applyColor = (color: string) => {
+  const applyColor = useCallback((color: string) => {
     if (!selectedTarget) return
     setAnimating({ type: selectedTarget.type, index: selectedTarget.index, color })
     setAnimationStep(0)
-  }
+    pendingColorRef.current = { type: selectedTarget.type, index: selectedTarget.index, color }
+  }, [selectedTarget])
 
   // Animación smooth de relleno
   useEffect(() => {
     if (!animating) return
     const size = puzzle.size
     if (animationStep >= size) {
-      // Al terminar, aplica el color a toda la fila/columna
-      if (animating.type === 'row') {
-        setRowColors((prev) => {
-          const next = [...prev]
-          next[animating.index] = animating.color
-          return next
-        })
-      } else {
-        setColColors((prev) => {
-          const next = [...prev]
-          next[animating.index] = animating.color
-          return next
-        })
-      }
-      setAnimating(null)
-      setAnimationStep(0)
+      // Al terminar, aplica el color a toda la fila/columna fuera del render
+      setTimeout(() => {
+        const pending = pendingColorRef.current
+        if (!pending) return
+        if (pending.type === 'row') {
+          setRowColors((prev) => {
+            const next = [...prev]
+            next[pending.index] = pending.color
+            return next
+          })
+        } else {
+          setColColors((prev) => {
+            const next = [...prev]
+            next[pending.index] = pending.color
+            return next
+          })
+        }
+        setAnimating(null)
+        setAnimationStep(0)
+        pendingColorRef.current = null
+      }, 0)
       return
     }
     const timeout = setTimeout(() => {
@@ -290,8 +297,9 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
       }
       if (!allOk) break
     }
-    setIsComplete(allOk)
-  }, [rowColors, colColors, puzzle])
+    // Usar setTimeout para evitar cascada de renders
+    setTimeout(() => setIsComplete(allOk), 0)
+  }, [rowColors, colColors, puzzle, getPlayCellColor])
 
   return (
     <section className="rounded-3xl border border-zinc-900/10 bg-white/90 p-4 shadow-lg backdrop-blur sm:p-6 relative overflow-visible">
@@ -487,20 +495,37 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
 }
 
 // ConfettiExplosion: simple CSS confetti burst
+import { useMemo } from 'react'
+
 function ConfettiExplosion() {
-  // 18 confetti pieces, random color/angle
+  // 18 confetti pieces, random color/angle, pero estables
   const colors = [
     '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
     '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981'
   ]
-  const confetti = Array.from({ length: 18 }, (_, i) => {
-    const angle = Math.random() * 360
-    const dist = 80 + Math.random() * 60
-    const x = Math.cos(angle) * dist
-    const y = Math.sin(angle) * dist
-    const color = colors[i % colors.length]
-    const delay = Math.random() * 0.2
-    return (
+  // Generar datos estables
+  const confettiData = useMemo(() => {
+    return Array.from({ length: 18 }, (_, i) => {
+      // Usar un seed simple para que sea estable
+      const seed = i * 12345 + 6789
+      const rand = (x: number) => {
+        let t = x
+        t ^= t << 13
+        t ^= t >> 17
+        t ^= t << 5
+        return Math.abs(t) / 0xffffffff
+      }
+      const angle = rand(seed) * 360
+      const dist = 80 + rand(seed + 1) * 60
+      const x = Math.cos(angle) * dist
+      const y = Math.sin(angle) * dist
+      const color = colors[i % colors.length]
+      const delay = rand(seed + 2) * 0.2
+      return { i, x, y, angle, color, delay }
+    })
+  }, [])
+  return <>
+    {confettiData.map(({ i, x, y, angle, color, delay }) => (
       <span
         key={i}
         style={{
@@ -517,9 +542,7 @@ function ConfettiExplosion() {
           zIndex: 100,
         }}
       />
-    )
-  })
-  return <>{confetti}
+    ))}
     <style>{`
       @keyframes confetti-pop {
         0% { opacity: 0; transform: translate(-50%,-50%) scale(0.5); }
