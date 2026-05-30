@@ -252,13 +252,13 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
       if (animating.type === 'row' && row === animating.index && col < animationStep) {
         // Animando fila
         const colColor = colColors[col]
-        if (!colColor) return '#E5E7EB'
+        if (!colColor) return animating.color // Mostrar color puro si la otra dimensión es null
         return mixColors(animating.color, colColor)
       }
       if (animating.type === 'col' && col === animating.index && row < animationStep) {
         // Animando columna
         const rowColor = rowColors[row]
-        if (!rowColor) return '#E5E7EB'
+        if (!rowColor) return animating.color // Mostrar color puro si la otra dimensión es null
         return mixColors(rowColor, animating.color)
       }
     }
