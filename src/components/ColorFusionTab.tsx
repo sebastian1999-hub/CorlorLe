@@ -374,7 +374,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
                     {!rowColors[row] && <span className="text-xs font-black text-amber-700">F</span>}
                   </button>
                   {Array.from({ length: puzzle.size }, (_, col) => {
-                    const key = cellKey(row, col)
+                    // const key = cellKey(row, col)
                     return (
                       <div
                         key={`play-cell-${row}-${col}`}
@@ -546,7 +546,7 @@ function ConfettiExplosion() {
       const delay = rand(seed + 2) * 0.2
       return { i, x, y, angle, color, delay }
     })
-  }, [])
+  }, [colors])
   return <>
     {confettiData.map(({ i, x, y, angle, color, delay }) => (
       <span
