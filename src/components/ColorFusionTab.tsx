@@ -1,3 +1,4 @@
+
 import { Fragment, useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { hexToRgb, rgbToHex } from '../lib/colorMath'
 
@@ -27,33 +28,19 @@ type PaletteOption = {
 
 const PALETTE_OPTIONS: PaletteOption[] = [
   { hex: '#1E1E1E', group: 'Neutros' },
-  { hex: '#616161', group: 'Neutros' },
-  { hex: '#9E9E9E', group: 'Neutros' },
   { hex: '#E0E0E0', group: 'Neutros' },
 
   { hex: '#C00000', group: 'Rojos' },
-  { hex: '#E53935', group: 'Rojos' },
   { hex: '#EF9A9A', group: 'Rojos' },
 
   { hex: '#E65100', group: 'Naranjas' },
-  { hex: '#FB8C00', group: 'Naranjas' },
   { hex: '#FFCC80', group: 'Naranjas' },
 
-  { hex: '#F9A825', group: 'Amarillos' },
-  { hex: '#FDD835', group: 'Amarillos' },
-  { hex: '#FFF59D', group: 'Amarillos' },
-
   { hex: '#2E7D32', group: 'Verdes' },
-  { hex: '#43A047', group: 'Verdes' },
   { hex: '#A5D6A7', group: 'Verdes' },
 
   { hex: '#0D47A1', group: 'Azules' },
-  { hex: '#1E88E5', group: 'Azules' },
   { hex: '#90CAF9', group: 'Azules' },
-
-  { hex: '#4A148C', group: 'Morados' },
-  { hex: '#7B1FA2', group: 'Morados' },
-  { hex: '#CE93D8', group: 'Morados' },
 ]
 
 const PALETTE_HEX = PALETTE_OPTIONS.map((entry) => entry.hex)
@@ -183,6 +170,8 @@ const buildDailyPuzzle = (dateKey: string): FusionPuzzle => {
 
 
 export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
+  // Estado para toggle de cuadrícula
+  const [showObjective, setShowObjective] = useState(false)
   const puzzle = useMemo(() => buildDailyPuzzle(dateKey), [dateKey])
   const [rowColors, setRowColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   const [colColors, setColColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
@@ -246,7 +235,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
     return '#FFFFFF'
   }
 
-  const getPlayCellColor = (row: number, col: number): string => {
+  const getPlayCellColor = useCallback((row: number, col: number): string => {
     // Si está animando, mostrar el color progresivamente
     if (animating) {
       if (animating.type === 'row' && row === animating.index && col < animationStep) {
@@ -271,7 +260,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
     if (rowColor) return rowColor
     if (colColor) return colColor
     return '#E5E7EB'
-  }
+  }, [animating, animationStep, rowColors, colColors])
 
   // Chequeo de completado
   useEffect(() => {
@@ -328,157 +317,197 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         {/* Sin contador de validaciones */}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="overflow-x-auto">
-          <div className="mx-auto w-max rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-            <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Tabla Objetivo</p>
+
+      <div className="flex justify-center mb-4">
+        <button
+          type="button"
+          className="px-4 py-2 rounded-full bg-emerald-100 text-emerald-800 font-bold shadow transition hover:bg-emerald-200"
+          onClick={() => setShowObjective((v) => !v)}
+        >
+          {showObjective ? 'Ver mi tablero' : 'Ver tabla objetivo'}
+        </button>
+      </div>
+
+      <div className="relative flex justify-center items-center min-h-[340px]">
+        <div
+          className={`absolute left-0 right-0 top-0 bottom-0 flip-card transition-transform duration-700 ease-in-out ${showObjective ? 'flip-card-hide' : 'flip-card-show'} flex justify-center`}
+        >
+          <div className="mx-auto w-max p-0 bg-transparent">
             <div
-              className="grid gap-1"
+              className="grid gap-2"
               style={{
-                gridTemplateColumns: `repeat(${puzzle.size}, 34px)`,
-                gridTemplateRows: `repeat(${puzzle.size}, 34px)`,
+                gridTemplateColumns: `40px repeat(${puzzle.size}, 48px)`,
+                gridTemplateRows: `40px repeat(${puzzle.size}, 48px)`,
               }}
             >
-              {Array.from({ length: puzzle.size }, (_, row) =>
-                Array.from({ length: puzzle.size }, (_, col) => {
-                  const key = cellKey(row, col)
-                  const isClue = puzzle.clues.has(key)
-                  const border = isClue ? '2px solid #f59e0b' : '1px solid #d4d4d8'
-
-                  return (
-                    <div
-                      key={`goal-cell-${row}-${col}`}
-                      className="rounded"
-                      style={{
-                        backgroundColor: getObjectiveCellColor(row, col),
-                        border,
-                      }}
-                      title={isClue ? 'Pista fija' : 'Sin pista'}
-                    />
-                  )
-                }),
-              )}
+              <div className="rounded bg-transparent" />
+              {Array.from({ length: puzzle.size }, (_, col) => {
+                const selected = selectedTarget?.type === 'col' && selectedTarget.index === col
+                const colColor = colColors[col]
+                return (
+                  <button
+                    key={`col-${col}`}
+                    type="button"
+                    onClick={() => openPalette({ type: 'col', index: col })}
+                    className={`relative flex items-center justify-center rounded-full border-2 border-zinc-400 shadow transition h-10 w-10 sm:h-8 sm:w-8 ${selected ? 'ring-4 ring-emerald-400' : ''}`}
+                    style={{
+                      backgroundColor: colColor ?? 'transparent',
+                    }}
+                    title={`Columna ${col + 1}`}
+                  >
+                    {!colColor && <span className="text-xs font-black text-amber-700">C</span>}
+                  </button>
+                )
+              })}
+              {Array.from({ length: puzzle.size }, (_, row) => (
+                <Fragment key={`row-line-${row}`}>
+                  <button
+                    key={`row-${row}`}
+                    type="button"
+                    onClick={() => openPalette({ type: 'row', index: row })}
+                    className={`relative flex items-center justify-center rounded-full border-2 border-zinc-400 shadow transition h-10 w-10 sm:h-8 sm:w-8 ${(selectedTarget?.type === 'row' && selectedTarget.index === row) ? 'ring-4 ring-emerald-400' : ''}`}
+                    style={{
+                      backgroundColor: rowColors[row] ?? 'transparent',
+                    }}
+                    title={`Fila ${row + 1}`}
+                  >
+                    {!rowColors[row] && <span className="text-xs font-black text-amber-700">F</span>}
+                  </button>
+                  {Array.from({ length: puzzle.size }, (_, col) => {
+                    const key = cellKey(row, col)
+                    return (
+                      <div
+                        key={`play-cell-${row}-${col}`}
+                        className="rounded border border-black"
+                        style={{
+                          backgroundColor: getPlayCellColor(row, col),
+                        }}
+                        title="Casilla de mezcla"
+                      />
+                    )
+                  })}
+                </Fragment>
+              ))}
             </div>
           </div>
         </div>
-
-        <div className="overflow-x-auto">
-          <div className="mx-auto w-max rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-          <div
-            className="grid gap-1"
-            style={{
-              gridTemplateColumns: `32px repeat(${puzzle.size}, 34px)`,
-              gridTemplateRows: `32px repeat(${puzzle.size}, 34px)`,
-            }}
-          >
-            <div className="rounded bg-transparent" />
-
-            {Array.from({ length: puzzle.size }, (_, col) => {
-              const selected = selectedTarget?.type === 'col' && selectedTarget.index === col
-              const colColor = colColors[col]
-              return (
-                <button
-                  key={`col-${col}`}
-                  type="button"
-                  onClick={() => openPalette({ type: 'col', index: col })}
-                  className={`relative flex items-center justify-center rounded border-2 ${selected ? 'border-amber-600 shadow-[0_0_0_2px_rgba(245,158,11,0.25)]' : 'border-amber-400'} transition`}
-                  style={{
-                    backgroundColor: colColor ?? '#FFF7ED',
-                    backgroundImage: colColor
-                      ? undefined
-                      : 'repeating-linear-gradient(135deg, rgba(245,158,11,0.22) 0 6px, transparent 6px 12px)',
-                  }}
-                  title={`Columna ${col + 1}`}
-                >
-                  {!colColor && <span className="text-xs font-black text-amber-700">C</span>}
-                </button>
-              )
-            })}
-
-            {Array.from({ length: puzzle.size }, (_, row) => (
-              <Fragment key={`row-line-${row}`}>
-                <button
-                  key={`row-${row}`}
-                  type="button"
-                  onClick={() => openPalette({ type: 'row', index: row })}
-                  className={`relative flex items-center justify-center rounded border-2 ${(selectedTarget?.type === 'row' && selectedTarget.index === row) ? 'border-amber-600 shadow-[0_0_0_2px_rgba(245,158,11,0.25)]' : 'border-amber-400'} transition`}
-                  style={{
-                    backgroundColor: rowColors[row] ?? '#FFF7ED',
-                    backgroundImage: rowColors[row]
-                      ? undefined
-                      : 'repeating-linear-gradient(135deg, rgba(245,158,11,0.22) 0 6px, transparent 6px 12px)',
-                  }}
-                  title={`Fila ${row + 1}`}
-                >
-                  {!rowColors[row] && <span className="text-xs font-black text-amber-700">F</span>}
-                </button>
-
-                {Array.from({ length: puzzle.size }, (_, col) => {
-                  const key = cellKey(row, col)
-                  const border = puzzle.clues.has(key) ? '1px solid #d4d4d8' : '1px solid #d4d4d8'
-
-                  return (
-                    <div
-                      key={`play-cell-${row}-${col}`}
-                      className="rounded"
-                      style={{
-                        backgroundColor: getPlayCellColor(row, col),
-                        border,
-                      }}
-                      title="Casilla de mezcla"
-                    />
-                  )
-                })}
-              </Fragment>
-            ))}
+        <div
+          className={`absolute left-0 right-0 top-0 bottom-0 flip-card transition-transform duration-700 ease-in-out ${showObjective ? 'flip-card-show' : 'flip-card-hide'} flex justify-center`}
+        >
+          <div className="mx-auto w-max p-0 bg-transparent">
+            <div
+              className="grid gap-2"
+              style={{
+                gridTemplateColumns: `40px repeat(${puzzle.size}, 48px)`,
+                gridTemplateRows: `40px repeat(${puzzle.size}, 48px)`,
+              }}
+            >
+              {/* Selectores invisibles de columna */}
+              <div className="rounded bg-transparent" />
+              {Array.from({ length: puzzle.size }, (_, col) => (
+                <div
+                  key={`col-invisible-${col}`}
+                  className="h-10 w-10 sm:h-8 sm:w-8 rounded-full opacity-0"
+                />
+              ))}
+              {Array.from({ length: puzzle.size }, (_, row) => (
+                <Fragment key={`row-line-obj-${row}`}>
+                  {/* Selector invisible de fila */}
+                  <div
+                    key={`row-invisible-${row}`}
+                    className="h-10 w-10 sm:h-8 sm:w-8 rounded-full opacity-0"
+                  />
+                  {Array.from({ length: puzzle.size }, (_, col) => {
+                    const key = cellKey(row, col)
+                    const isClue = puzzle.clues.has(key)
+                    // ¿Está acertado?
+                    let isCorrect = false
+                    if (isClue) {
+                      const expected = puzzle.clues.get(key)
+                      const actual = getPlayCellColor(row, col)
+                      if (expected?.toLowerCase() === actual?.toLowerCase()) {
+                        isCorrect = true
+                      }
+                    }
+                    return (
+                      <div
+                        key={`goal-cell-${row}-${col}`}
+                        className={`rounded border ${isCorrect ? 'border-4 border-emerald-500' : 'border-black'}`}
+                        style={{
+                          backgroundColor: getObjectiveCellColor(row, col),
+                        }}
+                        title={isClue ? 'Pista fija' : 'Sin pista'}
+                      />
+                    )
+                  })}
+                </Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-      </div>
+      <style>{`
+        .flip-card {
+          perspective: 1400px;
+          transform-style: preserve-3d;
+        }
+        .flip-card-show {
+          transform: rotateY(0deg);
+          opacity: 1;
+          z-index: 2;
+          box-shadow: 0 8px 32px 0 rgba(60,60,60,0.10);
+          backface-visibility: hidden;
+          transition: transform 0.7s cubic-bezier(.77,0,.18,1), opacity 0.5s;
+        }
+        .flip-card-hide {
+          transform: rotateY(-100deg);
+          opacity: 0;
+          z-index: 1;
+          pointer-events: none;
+          box-shadow: none;
+          backface-visibility: hidden;
+          transition: transform 0.7s cubic-bezier(.77,0,.18,1), opacity 0.5s;
+        }
+      `}</style>
 
       {isPaletteOpen && (
         <div
-          className="mt-4 transition-all duration-300 ease-out max-h-[520px] opacity-100"
+          className="fixed z-40 right-6 top-1/2 -translate-y-1/2 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl transition-transform duration-300 ease-out w-max"
           aria-hidden={false}
         >
-          <div
-            className="fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl transition-transform duration-300 ease-out sm:inset-x-6 md:static md:inset-auto md:bottom-auto md:shadow-sm translate-y-0 scale-100"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                {selectedTarget ? (selectedTarget.type === 'row' ? `Fila ${selectedTarget.index + 1}` : `Columna ${selectedTarget.index + 1}`) : ''}
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsPaletteOpen(false)}
-                className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100"
-                aria-label="Cerrar paleta"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {['Neutros', 'Rojos', 'Naranjas', 'Amarillos', 'Verdes', 'Azules', 'Morados'].map((group) => (
-                <div key={`palette-row-${group}`} className="flex flex-wrap gap-2">
-                  {PALETTE_OPTIONS
-                    .filter((option) => option.group === group)
-                    .map((option) => (
-                      <button
-                        key={`${group}-${option.hex}`}
-                        type="button"
-                        onClick={() => {
-                          applyColor(option.hex)
-                          setIsPaletteOpen(false)
-                        }}
-                        className="h-9 w-9 rounded border border-zinc-300 transition hover:scale-105 sm:h-8 sm:w-8"
-                        style={{ backgroundColor: option.hex }}
-                        title={option.hex.toUpperCase()}
-                      />
-                    ))}
-                </div>
-              ))}
-            </div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              {selectedTarget ? (selectedTarget.type === 'row' ? `Fila ${selectedTarget.index + 1}` : `Columna ${selectedTarget.index + 1}`) : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsPaletteOpen(false)}
+              className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100"
+              aria-label="Cerrar paleta"
+            >
+              ×
+            </button>
+          </div>
+          <div className="space-y-2">
+            {['Neutros', 'Rojos', 'Naranjas', 'Verdes', 'Azules'].map((group) => (
+              <div key={`palette-row-${group}`} className="flex flex-wrap gap-2">
+                {PALETTE_OPTIONS
+                  .filter((option) => option.group === group)
+                  .map((option) => (
+                    <button
+                      key={`${group}-${option.hex}`}
+                      type="button"
+                      onClick={() => {
+                        applyColor(option.hex)
+                        setIsPaletteOpen(false)
+                      }}
+                      className="h-9 w-9 rounded border border-zinc-300 transition hover:scale-105 sm:h-8 sm:w-8"
+                      style={{ backgroundColor: option.hex }}
+                      title={option.hex.toUpperCase()}
+                    />
+                  ))}
+              </div>
+            ))}
           </div>
         </div>
       )}
