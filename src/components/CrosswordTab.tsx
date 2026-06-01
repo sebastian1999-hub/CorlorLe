@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { buildDailyCrossword, buildDailyCrosswordFromWordList, type CrosswordCell, type CrosswordClue } from '../lib/crossword.ts'
+import { buildDailyCrossword, buildDailyCrosswordFromWordList, type CrosswordCell } from '../lib/crossword.ts'
 import { supabase } from '../lib/supabase'
 import goldMedal from '../assets/oro.png'
 import silverMedal from '../assets/copa-de-plata.png'
@@ -28,6 +28,8 @@ type DictionaryRow = {
 }
 
 const MAX_CHECKS = 2
+// Increment this value when you want to regenerate the global daily crossword for everyone.
+const CROSSWORD_DAILY_REVISION = '2026-06-01-r1'
 
 const formatSeconds = (value: number): string => {
   const total = Math.max(0, Math.round(value))
@@ -39,21 +41,23 @@ const formatSeconds = (value: number): string => {
 export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: CrosswordTabProps) {
   const [remoteDictionary, setRemoteDictionary] = useState<DictionaryRow[]>([])
 
-  const todayDateKey = useMemo(() => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }, [])
-
-  const shouldUseRemoteDictionary = dateKey > todayDateKey
-
-  useEffect(() => {
-    if (!shouldUseRemoteDictionary) {
-      return
+  const deterministicRemoteDictionary = useMemo(() => {
+    const dedupByWord = new Map<string, DictionaryRow>()
+    for (const row of remoteDictionary) {
+      const key = String(row.word || '').trim().toUpperCase()
+      if (!key || dedupByWord.has(key)) {
+        continue
+      }
+      dedupByWord.set(key, {
+        word: key,
+        clue: String(row.clue || '').trim(),
+      })
     }
 
+    return [...dedupByWord.values()].sort((a, b) => a.word.localeCompare(b.word))
+  }, [remoteDictionary])
+
+  useEffect(() => {
     let isMounted = true
 
     const loadDictionary = async () => {
@@ -61,6 +65,7 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
         .from('crossword_dictionary')
         .select('word,clue')
         .eq('is_active', true)
+        .order('word', { ascending: true })
         .limit(5000)
 
       if (!isMounted) {
@@ -81,15 +86,15 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     return () => {
       isMounted = false
     }
-  }, [shouldUseRemoteDictionary])
+  }, [])
 
   const puzzle = useMemo(() => {
-    const effectiveRemoteDictionary = shouldUseRemoteDictionary ? remoteDictionary : []
-    if (effectiveRemoteDictionary.length >= 24) {
-      return buildDailyCrosswordFromWordList(dateKey, effectiveRemoteDictionary)
+    if (deterministicRemoteDictionary.length >= 24) {
+      const versionedDateKey = `${dateKey}-global-${CROSSWORD_DAILY_REVISION}`
+      return buildDailyCrosswordFromWordList(versionedDateKey, deterministicRemoteDictionary)
     }
     return buildDailyCrossword(dateKey)
-  }, [dateKey, remoteDictionary, shouldUseRemoteDictionary])
+  }, [dateKey, deterministicRemoteDictionary])
   const letterPool = useMemo(() => {
     const letters = new Set<string>()
     for (const row of puzzle.grid) {
@@ -144,6 +149,26 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     })
     return map
   }, [answerCoords])
+
+  const unifiedClues = useMemo(() => {
+    const grouped = new Map<number, string[]>()
+    const allClues = [...puzzle.cluesAcross, ...puzzle.cluesDown].sort((a, b) =>
+      a.number - b.number || a.row - b.row || a.col - b.col,
+    )
+
+    for (const clue of allClues) {
+      const list = grouped.get(clue.number) ?? []
+      list.push(clue.clue)
+      grouped.set(clue.number, list)
+    }
+
+    return [...grouped.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([number, clues]) => ({
+        number,
+        clue: clues.join(' / '),
+      }))
+  }, [puzzle.cluesAcross, puzzle.cluesDown])
 
   const isValidationAnimating = validationPhase !== 'idle'
 
@@ -822,29 +847,15 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
         <div className="space-y-4">
           <article className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Horizontales</h3>
-            <ul className="mt-2 max-h-52 space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
-              {puzzle.cluesAcross.map((clue: CrosswordClue) => (
-                <li key={`A-${clue.number}-${clue.row}-${clue.col}-${clue.answer}`}>
+            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Pistas</h3>
+            <ul className="mt-2 max-h-[28rem] space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
+              {unifiedClues.map((clue) => (
+                <li key={`U-${clue.number}`}>
                   <span className="font-bold">{clue.number}.</span> {clue.clue}
                 </li>
               ))}
             </ul>
           </article>
-
-          {puzzle.cluesDown.length > 0 && (
-            <article className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-              <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Verticales</h3>
-              <ul className="mt-2 max-h-52 space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
-                {puzzle.cluesDown.map((clue: CrosswordClue) => (
-                  <li key={`D-${clue.number}-${clue.row}-${clue.col}-${clue.answer}`}>
-                    <span className="font-bold">{clue.number}.</span> {clue.clue}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          )}
-
         </div>
       </div>
     </section>
