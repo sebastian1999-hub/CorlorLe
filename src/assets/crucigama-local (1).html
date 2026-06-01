@@ -1,0 +1,1193 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crucigama local</title>
+  <style>
+    :root {
+      --bg: #fbf7ef;
+      --ink: #1f2933;
+      --muted: #7d786e;
+      --cream: #fff1d8;
+      --cream-2: #f5dfbd;
+      --slot: #e8d0a8;
+      --shadow: rgba(78, 52, 28, 0.18);
+      --accent: #34d399;
+      --cell-size: clamp(46px, 7vw, 68px);
+      --control-size: clamp(38px, 5.4vw, 54px);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 8%, rgba(255, 210, 160, 0.42), transparent 34%),
+        radial-gradient(circle at 82% 18%, rgba(176, 217, 204, 0.36), transparent 30%),
+        linear-gradient(135deg, #fffaf2 0%, #f7efe2 52%, #fff8eb 100%);
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      border: 0;
+      cursor: pointer;
+    }
+
+    .page {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 42px;
+    }
+
+    .header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 54px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .logo span {
+      display: inline-block;
+      transform-origin: 50% 80%;
+    }
+
+    .logo span:nth-child(1) { color: #f97316; }
+    .logo span:nth-child(2) { color: #fb923c; }
+    .logo span:nth-child(3) { color: #facc15; }
+    .logo span:nth-child(4) { color: #84cc16; }
+    .logo span:nth-child(5) { color: #22c55e; }
+    .logo span:nth-child(6) { color: #06b6d4; }
+    .logo span:nth-child(7) { color: #3b82f6; }
+    .logo span:nth-child(8) { color: #6366f1; }
+    .logo span:nth-child(9) { color: #a855f7; }
+
+    .top-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .pill {
+      min-height: 48px;
+      padding: 0 24px;
+      border-radius: 999px;
+      font-weight: 850;
+      background: #c9f7df;
+      color: #0c654f;
+      box-shadow:
+        0 9px 18px rgba(47, 105, 82, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .pill:hover {
+      transform: translateY(-1px);
+      background: #bdf3d7;
+      box-shadow:
+        0 11px 22px rgba(47, 105, 82, 0.21),
+        inset 0 1px 0 rgba(255, 255, 255, 0.86);
+    }
+
+    .ghost {
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: 999px;
+      color: #6b6257;
+      background: rgba(255, 255, 255, 0.58);
+      box-shadow: inset 0 0 0 1px rgba(120, 94, 60, 0.14);
+    }
+
+    .ghost.active {
+      color: #0c654f;
+      background: rgba(201, 247, 223, 0.72);
+      box-shadow:
+        0 8px 18px rgba(47, 105, 82, 0.14),
+        inset 0 0 0 1px rgba(16, 185, 129, 0.22);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 26px;
+    }
+
+    .game-shell {
+      position: relative;
+      justify-self: center;
+      padding: clamp(18px, 3vw, 34px);
+      border-radius: 42px;
+      background: linear-gradient(145deg, #fff3da 0%, #f3dcb8 100%);
+      box-shadow:
+        0 26px 42px rgba(83, 55, 28, 0.18),
+        inset 0 2px 0 rgba(255, 255, 255, 0.78),
+        inset 0 -9px 18px rgba(122, 82, 43, 0.08);
+      transform-origin: 50% 55%;
+      will-change: transform, opacity;
+    }
+
+    .game-shell::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 32px;
+      pointer-events: none;
+      box-shadow:
+        inset 0 0 0 1px rgba(106, 76, 42, 0.13),
+        inset 0 12px 22px rgba(255, 255, 255, 0.26);
+    }
+
+    .board-stage {
+      position: relative;
+      min-width: calc(var(--control-size) + 5 * var(--cell-size) + 6 * 10px);
+      min-height: calc(var(--control-size) + 5 * var(--cell-size) + 6 * 10px);
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+      transition: transform 650ms cubic-bezier(.77, 0, .18, 1), opacity 420ms ease;
+    }
+
+    .face.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: rotateY(-98deg);
+    }
+
+    .face.visible {
+      opacity: 1;
+      transform: rotateY(0deg);
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: var(--control-size) repeat(5, var(--cell-size));
+      grid-template-rows: var(--control-size) repeat(5, var(--cell-size));
+      gap: 10px;
+      align-items: center;
+      justify-items: center;
+    }
+
+    .corner { width: var(--control-size); height: var(--control-size); }
+
+    .control {
+      width: var(--control-size);
+      height: var(--control-size);
+      border-radius: 50%;
+      background: #f6e5c9;
+      color: #9a6b26;
+      font-weight: 900;
+      font-size: 13px;
+      box-shadow:
+        0 7px 13px rgba(70, 46, 25, 0.19),
+        inset 0 2px 1px rgba(255, 255, 255, 0.66),
+        inset 0 -4px 8px rgba(97, 66, 30, 0.10);
+      outline: 3px solid rgba(104, 83, 52, 0.16);
+      transition: transform 150ms ease, outline-color 150ms ease, box-shadow 150ms ease;
+      transform-origin: 50% 55%;
+      will-change: transform, opacity;
+    }
+
+    .control:hover {
+      transform: translateY(-2px);
+    }
+
+    .control.active {
+      outline-color: #34d399;
+      box-shadow:
+        0 0 0 7px rgba(52, 211, 153, 0.20),
+        0 9px 16px rgba(70, 46, 25, 0.20),
+        inset 0 2px 1px rgba(255, 255, 255, 0.62);
+    }
+
+    .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      border-radius: 12px;
+      background: #e5e7eb;
+      border: 1px solid rgba(65, 47, 28, 0.35);
+      box-shadow:
+        0 7px 10px rgba(71, 49, 27, 0.13),
+        inset 0 2px 1px rgba(255, 255, 255, 0.48),
+        inset 0 -5px 8px rgba(51, 34, 18, 0.10);
+      transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      transform-origin: 50% 58%;
+      will-change: transform, opacity;
+    }
+
+    .cell.clue {
+      border-color: rgba(20, 20, 20, 0.80);
+    }
+
+    .cell.correct {
+      border-color: #10b981;
+      box-shadow:
+        0 0 0 4px rgba(16, 185, 129, 0.28),
+        0 7px 10px rgba(71, 49, 27, 0.13),
+        inset 0 2px 1px rgba(255, 255, 255, 0.48);
+    }
+
+    .objective .cell.empty {
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.78), rgba(244,230,204,0.86));
+      border-color: rgba(180, 151, 106, 0.34);
+      box-shadow: inset 0 4px 9px rgba(117, 84, 45, 0.12);
+    }
+
+    .palette {
+      align-self: center;
+      width: 148px;
+      padding: 18px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.80);
+      box-shadow:
+        0 22px 38px rgba(71, 49, 27, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.90),
+        inset 0 0 0 1px rgba(104, 83, 52, 0.10);
+      backdrop-filter: blur(8px);
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+
+    .palette-title {
+      min-height: 18px;
+      margin: 0 0 14px;
+      color: #9a958b;
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(2, 46px);
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .swatch {
+      width: 46px;
+      height: 46px;
+      border-radius: 9px;
+      box-shadow:
+        0 8px 12px rgba(71, 49, 27, 0.14),
+        inset 0 2px 1px rgba(255, 255, 255, 0.45),
+        inset 0 -5px 8px rgba(0, 0, 0, 0.09);
+      outline: 1px solid rgba(37, 29, 20, 0.18);
+      transition: transform 150ms ease, box-shadow 150ms ease;
+      transform-origin: 50% 60%;
+      will-change: transform, opacity;
+    }
+
+    .swatch:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      filter: grayscale(0.25);
+    }
+
+    .swatch:not(:disabled):hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow:
+        0 10px 16px rgba(71, 49, 27, 0.18),
+        inset 0 2px 1px rgba(255, 255, 255, 0.50),
+        inset 0 -5px 8px rgba(0, 0, 0, 0.09);
+    }
+
+    .status {
+      margin: 22px auto 0;
+      max-width: 760px;
+      min-height: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 700;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+
+    .complete {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      place-items: center;
+      background: rgba(255, 250, 242, 0.52);
+      backdrop-filter: blur(3px);
+      pointer-events: none;
+    }
+
+    .complete.show { display: grid; }
+
+    .complete-card {
+      padding: 22px 34px;
+      border-radius: 28px;
+      color: white;
+      font-weight: 950;
+      font-size: clamp(34px, 5vw, 62px);
+      background: linear-gradient(135deg, #f97316, #facc15, #22c55e, #3b82f6, #a855f7);
+      box-shadow: 0 22px 42px rgba(85, 60, 35, 0.24);
+      animation: pop 680ms cubic-bezier(.61, 1.6, .7, 1);
+    }
+
+    @keyframes pop {
+      from { transform: scale(0.72); opacity: 0; }
+      75% { transform: scale(1.08); opacity: 1; }
+      to { transform: scale(1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+    }
+
+    @media (max-width: 850px) {
+      .header {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .palette {
+        width: min(100%, 520px);
+        justify-self: center;
+      }
+
+      .swatches {
+        grid-template-columns: repeat(6, 42px);
+      }
+    }
+
+    @media (max-width: 540px) {
+      :root {
+        --cell-size: 42px;
+        --control-size: 34px;
+      }
+
+      .page { width: min(100vw - 18px, 1180px); }
+      .game-shell { padding: 12px; border-radius: 26px; }
+      .matrix { gap: 7px; }
+      .cell { border-radius: 9px; }
+      .swatches { grid-template-columns: repeat(4, 42px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1 class="logo" aria-label="Crucigama">
+        <span>C</span><span>r</span><span>u</span><span>c</span><span>i</span><span>g</span><span>a</span><span>m</span><span>a</span>
+      </h1>
+
+      <div class="top-actions">
+        <button class="pill" id="toggleObjective" type="button">Ver tabla objetivo</button>
+        <button class="ghost" id="resetGame" type="button">Reiniciar</button>
+        <button class="ghost" id="soundToggle" type="button">Sonido off</button>
+      </div>
+
+      <div></div>
+    </header>
+
+    <main class="layout">
+      <section class="game-shell" aria-label="Tablero de Crucigama">
+        <div class="board-stage">
+          <div class="face visible" id="playFace">
+            <div class="matrix" id="playMatrix"></div>
+          </div>
+
+          <div class="face hidden objective" id="objectiveFace">
+            <div class="matrix" id="objectiveMatrix"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="palette" aria-label="Colores seleccionables">
+        <p class="palette-title" id="paletteTitle">Elige fila o columna</p>
+        <div class="swatches" id="swatches"></div>
+      </aside>
+    </main>
+
+    <p class="status" id="status">Selecciona una fila o columna y aplica un color.</p>
+  </div>
+
+  <div class="complete" id="completeOverlay">
+    <div class="complete-card">Completado!</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+  <script>
+    const SIZE = 5;
+    const TARGET_CLUES = 8;
+    const DATE_KEY = new Date().toISOString().slice(0, 10);
+
+    const PALETTE = [
+      { hex: "#1E1E1E", name: "Carbon" },
+      { hex: "#E0E0E0", name: "Gris claro" },
+      { hex: "#C00000", name: "Rojo" },
+      { hex: "#EF9A9A", name: "Rosa" },
+      { hex: "#E65100", name: "Naranja" },
+      { hex: "#FFCC80", name: "Crema" },
+      { hex: "#2E7D32", name: "Verde" },
+      { hex: "#A5D6A7", name: "Menta" },
+      { hex: "#0D47A1", name: "Azul" },
+      { hex: "#90CAF9", name: "Azul cielo" },
+      { hex: "#F2C14E", name: "Mostaza" },
+      { hex: "#5F8A83", name: "Teal" }
+    ];
+
+    let selectedTarget = null;
+    let showingObjective = false;
+    let isComplete = false;
+    let previousCorrectKeys = new Set();
+    let soundEnabled = false;
+    let audioContext = null;
+
+    const SOUND_FILES = {
+      tap: "crucigama-sounds/tap.wav",
+      select: "crucigama-sounds/select.wav",
+      paint: "crucigama-sounds/paint.wav",
+      correct: "crucigama-sounds/correct.wav",
+      flip: "crucigama-sounds/flip.wav",
+      complete: "crucigama-sounds/complete.wav",
+      reset: "crucigama-sounds/reset.wav"
+    };
+    const soundPlayers = {};
+
+    const puzzle = buildDailyPuzzle(DATE_KEY);
+    let rowColors = Array.from({ length: SIZE }, () => null);
+    let colColors = Array.from({ length: SIZE }, () => null);
+
+    const playMatrix = document.getElementById("playMatrix");
+    const objectiveMatrix = document.getElementById("objectiveMatrix");
+    const swatches = document.getElementById("swatches");
+    const statusEl = document.getElementById("status");
+    const paletteTitle = document.getElementById("paletteTitle");
+    const playFace = document.getElementById("playFace");
+    const objectiveFace = document.getElementById("objectiveFace");
+    const toggleObjective = document.getElementById("toggleObjective");
+    const completeOverlay = document.getElementById("completeOverlay");
+    const resetButton = document.getElementById("resetGame");
+    const soundToggle = document.getElementById("soundToggle");
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function canAnimate() {
+      return !prefersReducedMotion && typeof window.anime === "function";
+    }
+
+    function runAnimation(targets, options) {
+      if (!canAnimate()) return;
+      window.anime.remove(targets);
+      window.anime(Object.assign({ targets }, options));
+    }
+
+    function pressElement(element) {
+      if (!element || !canAnimate()) return;
+      runAnimation(element, {
+        scale: [1, 0.94, 1.025, 1],
+        translateY: [0, 2, -1, 0],
+        duration: 430,
+        easing: "easeOutElastic(1, .72)"
+      });
+    }
+
+    function ensureAudioContext() {
+      if (!audioContext) {
+        const AudioCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtor) return null;
+        audioContext = new AudioCtor();
+      }
+      if (audioContext.state === "suspended") audioContext.resume();
+      return audioContext;
+    }
+
+    function preloadSoundFiles() {
+      for (const [name, src] of Object.entries(SOUND_FILES)) {
+        const audio = new Audio(src);
+        audio.preload = "auto";
+        soundPlayers[name] = audio;
+      }
+    }
+
+    function playSoundFile(name, volume = 0.16) {
+      if (!soundEnabled || !soundPlayers[name]) return false;
+      const player = new Audio(soundPlayers[name].src);
+      player.volume = volume;
+      player.play().catch(() => {});
+      return true;
+    }
+
+    function playTone({ frequency = 420, duration = 0.08, type = "sine", volume = 0.025, start = 0, detune = 0 }) {
+      if (!soundEnabled) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = ctx.currentTime + start;
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, t);
+      osc.detune.setValueAtTime(detune, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(volume, t + duration * 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + duration + 0.02);
+    }
+
+    function playNoise({ duration = 0.08, volume = 0.018, start = 0, frequency = 1900 }) {
+      if (!soundEnabled) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const sampleRate = ctx.sampleRate;
+      const length = Math.max(1, Math.floor(sampleRate * duration));
+      const buffer = ctx.createBuffer(1, length, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i += 1) {
+        const fade = 1 - i / length;
+        data[i] = (Math.random() * 2 - 1) * fade * fade;
+      }
+      const source = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      const t = ctx.currentTime + start;
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(frequency, t);
+      filter.Q.setValueAtTime(8, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(volume, t + duration * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      source.buffer = buffer;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(t);
+      source.stop(t + duration + 0.02);
+    }
+
+    function soundTap() {
+      if (playSoundFile("tap", 0.10)) return;
+      playNoise({ duration: 0.055, volume: 0.010, frequency: 2400 });
+      playTone({ frequency: 360, duration: 0.055, volume: 0.010, type: "triangle" });
+    }
+
+    function soundSelect() {
+      if (playSoundFile("select", 0.14)) return;
+      playTone({ frequency: 520, duration: 0.075, volume: 0.014, type: "sine" });
+      playNoise({ duration: 0.065, volume: 0.008, frequency: 3200, start: 0.015 });
+    }
+
+    function soundPaint() {
+      if (playSoundFile("paint", 0.12)) return;
+      playTone({ frequency: 260, duration: 0.16, volume: 0.018, type: "triangle" });
+      playTone({ frequency: 390, duration: 0.13, volume: 0.012, type: "sine", start: 0.045 });
+      playNoise({ duration: 0.14, volume: 0.010, frequency: 1500, start: 0.02 });
+    }
+
+    function soundCorrect() {
+      if (playSoundFile("correct", 0.13)) return;
+      playTone({ frequency: 610, duration: 0.11, volume: 0.014, type: "sine" });
+      playTone({ frequency: 780, duration: 0.13, volume: 0.012, type: "sine", start: 0.055 });
+      playNoise({ duration: 0.10, volume: 0.007, frequency: 4200, start: 0.015 });
+    }
+
+    function soundFlip() {
+      if (playSoundFile("flip", 0.09)) return;
+      playNoise({ duration: 0.18, volume: 0.012, frequency: 900 });
+      playTone({ frequency: 210, duration: 0.14, volume: 0.010, type: "triangle", start: 0.04 });
+    }
+
+    function soundComplete() {
+      if (playSoundFile("complete", 0.15)) return;
+      [440, 554, 659, 880].forEach((frequency, index) => {
+        playTone({ frequency, duration: 0.22, volume: 0.015, type: "sine", start: index * 0.055 });
+      });
+      playNoise({ duration: 0.34, volume: 0.012, frequency: 3600, start: 0.02 });
+    }
+
+    function soundReset() {
+      if (playSoundFile("reset", 0.10)) return;
+      soundTap();
+    }
+
+    function animateIntro() {
+      if (!canAnimate()) return;
+      runAnimation(".logo span", {
+        translateY: [14, 0],
+        rotate: [-4, 0],
+        opacity: [0, 1],
+        scale: [0.9, 1],
+        delay: window.anime.stagger(38),
+        duration: 820,
+        easing: "easeOutElastic(1, .82)"
+      });
+      runAnimation(".pill, .ghost", {
+        translateY: [-12, 0],
+        opacity: [0, 1],
+        delay: window.anime.stagger(70, { start: 180 }),
+        duration: 640,
+        easing: "easeOutExpo"
+      });
+      runAnimation(".game-shell", {
+        translateY: [22, 0],
+        scale: [0.975, 1],
+        opacity: [0, 1],
+        duration: 920,
+        easing: "easeOutElastic(1, .88)"
+      });
+      runAnimation("#playMatrix .control, #playMatrix .cell", {
+        translateY: [12, 0],
+        scale: [0.84, 1],
+        opacity: [0, 1],
+        delay: window.anime.stagger(21, { grid: [6, 6], from: "center", start: 250 }),
+        duration: 760,
+        easing: "easeOutElastic(1, .86)"
+      });
+      runAnimation(".palette", {
+        translateX: [26, 0],
+        opacity: [0, 1],
+        delay: 340,
+        duration: 680,
+        easing: "easeOutExpo"
+      });
+      runAnimation(".swatch", {
+        translateY: [10, 0],
+        scale: [0.86, 1],
+        opacity: [0, 1],
+        delay: window.anime.stagger(24, { start: 440 }),
+        duration: 640,
+        easing: "easeOutElastic(1, .82)"
+      });
+    }
+
+    function animateSelection(target) {
+      if (!canAnimate()) return;
+      requestAnimationFrame(() => {
+        const selector = target.type === "row"
+          ? `[data-row-control="${target.index}"]`
+          : `[data-col-control="${target.index}"]`;
+        const control = document.querySelector(selector);
+        pressElement(control);
+        runAnimation(".palette", {
+          translateX: [18, 0],
+          scale: [0.985, 1],
+          opacity: [0.72, 1],
+          duration: 340,
+          easing: "easeOutCubic"
+        });
+        runAnimation(".swatch:not(:disabled)", {
+          translateY: [8, 0],
+          scale: [0.90, 1],
+          opacity: [0, 1],
+          delay: window.anime.stagger(20),
+          duration: 520,
+          easing: "easeOutElastic(1, .8)"
+        });
+        runAnimation("#status", {
+          translateY: [4, 0],
+          opacity: [0.45, 1],
+          duration: 260,
+          easing: "easeOutQuad"
+        });
+      });
+    }
+
+    function animateColorApplication(target, newlyCorrectKeys = []) {
+      if (!canAnimate()) return;
+      requestAnimationFrame(() => {
+        const controlSelector = target.type === "row"
+          ? `[data-row-control="${target.index}"]`
+          : `[data-col-control="${target.index}"]`;
+        const cellSelector = target.type === "row"
+          ? `#playMatrix .cell[data-row="${target.index}"]`
+          : `#playMatrix .cell[data-col="${target.index}"]`;
+        const control = document.querySelector(controlSelector);
+        const cells = Array.from(document.querySelectorAll(cellSelector));
+        const newlyCorrectSet = new Set(newlyCorrectKeys);
+        const waveCells = cells.filter((cell) => !newlyCorrectSet.has(cell.dataset.key));
+
+        runAnimation(control, {
+          scale: [1, 0.90, 1.10, 1],
+          translateY: [0, 3, -2, 0],
+          rotate: [0, -3, 2, 0],
+          duration: 660,
+          easing: "easeOutElastic(1, .68)"
+        });
+        runAnimation(waveCells, {
+          scale: [0.94, 1.055, 1],
+          translateY: [7, -2, 0],
+          rotate: [0, -1.4, 1.2, 0],
+          delay: window.anime.stagger(62),
+          duration: 650,
+          easing: "easeOutElastic(1, .72)"
+        });
+        runAnimation(".game-shell", {
+          scale: [1, 1.006, 1],
+          translateY: [0, -1, 0],
+          duration: 520,
+          easing: "easeOutSine"
+        });
+      });
+    }
+
+    function animateObjectiveCells() {
+      if (!canAnimate()) return;
+      requestAnimationFrame(() => {
+        const selector = showingObjective ? "#objectiveMatrix .cell" : "#playMatrix .cell";
+        runAnimation(selector, {
+          scale: [0.94, 1],
+          rotateY: [-7, 0],
+          opacity: [0.22, 1],
+          delay: window.anime.stagger(18, { grid: [5, 5], from: "center" }),
+          duration: 460,
+          easing: "easeOutExpo"
+        });
+      });
+    }
+
+    function animateNewCorrect(keys, delayStart = 0) {
+      if (!canAnimate() || keys.length === 0) return;
+      requestAnimationFrame(() => {
+        const targets = keys.flatMap((key) => [
+          playMatrix.querySelector(`[data-key="${key}"]`),
+          objectiveMatrix.querySelector(`[data-key="${key}"]`)
+        ]).filter(Boolean);
+        const timeline = window.anime.timeline({ delay: delayStart });
+        timeline.add({
+          targets,
+          scale: [1, 1.18, 0.94, 1.09, 1],
+          translateX: [0, -5, 5, -2, 0],
+          translateY: [0, -10, 4, -4, 0],
+          rotate: [0, -10, 12, -5, 0],
+          borderRadius: ["12px", "22px", "9px", "17px", "12px"],
+          delay: window.anime.stagger(52),
+          duration: 820,
+          easing: "easeOutElastic(1, .56)"
+        }).add({
+          targets,
+          boxShadow: [
+            "0 0 0 0 rgba(16, 185, 129, 0), 0 7px 10px rgba(71, 49, 27, 0.13)",
+            "0 0 0 9px rgba(16, 185, 129, 0.28), 0 14px 22px rgba(71, 49, 27, 0.18)",
+            "0 0 0 4px rgba(16, 185, 129, 0.18), 0 7px 10px rgba(71, 49, 27, 0.13)"
+          ],
+          duration: 520,
+          easing: "easeOutQuad"
+        }, "-=420");
+      });
+    }
+
+    function animateReset() {
+      if (!canAnimate()) return;
+      requestAnimationFrame(() => {
+        runAnimation("#playMatrix .control, #playMatrix .cell", {
+          scale: [0.82, 1],
+          opacity: [0, 1],
+          translateY: [12, 0],
+          rotate: [-2, 0],
+          delay: window.anime.stagger(17, { grid: [6, 6], from: "center" }),
+          duration: 640,
+          easing: "easeOutElastic(1, .78)"
+        });
+        runAnimation(".swatch", {
+          scale: [0.9, 1],
+          opacity: [0.4, 1],
+          delay: window.anime.stagger(16),
+          duration: 320,
+          easing: "easeOutQuad"
+        });
+      });
+    }
+
+    function animateComplete() {
+      if (!canAnimate()) return;
+      requestAnimationFrame(() => {
+        runAnimation(".complete-card", {
+          scale: [0.76, 1.16, 0.98, 1],
+          rotate: [-4, 2, -1, 0],
+          opacity: [0, 1],
+          duration: 980,
+          easing: "easeOutElastic(1, .62)"
+        });
+        runAnimation("#playMatrix .cell", {
+          scale: [1, 1.12, 0.98, 1],
+          translateY: [0, -8, 2, 0],
+          rotate: [0, -4, 3, 0],
+          delay: window.anime.stagger(25, { grid: [5, 5], from: "center" }),
+          duration: 760,
+          easing: "easeOutElastic(1, .64)"
+        });
+      });
+    }
+
+    function hashDate(value) {
+      let hash = 2166136261;
+      for (let i = 0; i < value.length; i += 1) {
+        hash ^= value.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+
+    function createRng(seed) {
+      let t = seed + 0x6d2b79f5;
+      return function rng() {
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function pickFrom(items, rng) {
+      const index = Math.floor(rng() * items.length);
+      return items[Math.max(0, Math.min(items.length - 1, index))];
+    }
+
+    function cellKey(row, col) {
+      return `${row}-${col}`;
+    }
+
+    function hexToRgb(hex) {
+      const clean = hex.replace("#", "");
+      return {
+        r: parseInt(clean.slice(0, 2), 16),
+        g: parseInt(clean.slice(2, 4), 16),
+        b: parseInt(clean.slice(4, 6), 16)
+      };
+    }
+
+    function rgbToHex(rgb) {
+      const toHex = (value) => Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
+      return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+    }
+
+    function mixColors(a, b) {
+      const rgbA = hexToRgb(a);
+      const rgbB = hexToRgb(b);
+      return rgbToHex({
+        r: Math.round((rgbA.r + rgbB.r) / 2),
+        g: Math.round((rgbA.g + rgbB.g) / 2),
+        b: Math.round((rgbA.b + rgbB.b) / 2)
+      });
+    }
+
+    function placeClue(row, col, clues, rowCounts, colCounts) {
+      const key = cellKey(row, col);
+      if (clues.has(key)) return false;
+      if (rowCounts[row] >= 2 || colCounts[col] >= 2) return false;
+      clues.set(key, "");
+      rowCounts[row] += 1;
+      colCounts[col] += 1;
+      return true;
+    }
+
+    function buildDailyPuzzle(dateKey) {
+      const rng = createRng(hashDate(`fusion-${dateKey}`));
+      const paletteHex = PALETTE.map((color) => color.hex);
+      const solvedRows = Array.from({ length: SIZE }, () => pickFrom(paletteHex, rng));
+      const solvedCols = Array.from({ length: SIZE }, () => pickFrom(paletteHex, rng));
+      const clues = new Map();
+      const rowCounts = Array.from({ length: SIZE }, () => 0);
+      const colCounts = Array.from({ length: SIZE }, () => 0);
+
+      for (let row = 0; row < SIZE; row += 1) {
+        const colOrder = Array.from({ length: SIZE }, (_, i) => i).sort(() => rng() - 0.5);
+        const availableCols = colOrder.filter((col) => colCounts[col] < 2);
+        const targetCol = availableCols.length > 0
+          ? availableCols.reduce((best, col) => colCounts[col] < colCounts[best] ? col : best, availableCols[0])
+          : colOrder[0];
+        placeClue(row, targetCol, clues, rowCounts, colCounts);
+      }
+
+      for (let col = 0; col < SIZE; col += 1) {
+        if (colCounts[col] > 0) continue;
+        const rowOrder = Array.from({ length: SIZE }, (_, i) => i).sort(() => rng() - 0.5);
+        const candidateRows = rowOrder.filter((row) => rowCounts[row] < 2);
+        if (candidateRows.length === 0) continue;
+        const targetRow = candidateRows.reduce((best, row) => rowCounts[row] < rowCounts[best] ? row : best, candidateRows[0]);
+        placeClue(targetRow, col, clues, rowCounts, colCounts);
+      }
+
+      const allCells = Array.from({ length: SIZE * SIZE }, (_, idx) => ({
+        row: Math.floor(idx / SIZE),
+        col: idx % SIZE
+      })).sort(() => rng() - 0.5);
+
+      for (const cell of allCells) {
+        if (clues.size >= TARGET_CLUES) break;
+        placeClue(cell.row, cell.col, clues, rowCounts, colCounts);
+      }
+
+      for (const key of clues.keys()) {
+        const [row, col] = key.split("-").map(Number);
+        clues.set(key, mixColors(solvedRows[row], solvedCols[col]));
+      }
+
+      return { clues, solvedRows, solvedCols };
+    }
+
+    function getPlayCellColor(row, col) {
+      const rowColor = rowColors[row];
+      const colColor = colColors[col];
+      if (rowColor && colColor) return mixColors(rowColor, colColor);
+      if (rowColor) return rowColor;
+      if (colColor) return colColor;
+      return "#E5E7EB";
+    }
+
+    function getObjectiveCellColor(row, col) {
+      return puzzle.clues.get(cellKey(row, col)) || "#FFFFFF";
+    }
+
+    function renderAll(options = {}) {
+      renderPlayMatrix();
+      renderObjectiveMatrix();
+      renderSwatches();
+      updateStatus();
+      return checkComplete(options);
+    }
+
+    function renderPlayMatrix() {
+      playMatrix.innerHTML = "";
+      playMatrix.appendChild(div("corner"));
+
+      for (let col = 0; col < SIZE; col += 1) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `control ${selectedTarget?.type === "col" && selectedTarget.index === col ? "active" : ""}`;
+        button.style.backgroundColor = colColors[col] || "#f6e5c9";
+        button.textContent = colColors[col] ? "" : "C";
+        button.title = `Columna ${col + 1}`;
+        button.dataset.colControl = col;
+        button.addEventListener("pointerdown", () => pressElement(button));
+        button.addEventListener("click", () => selectTarget("col", col));
+        playMatrix.appendChild(button);
+      }
+
+      for (let row = 0; row < SIZE; row += 1) {
+        const rowButton = document.createElement("button");
+        rowButton.type = "button";
+        rowButton.className = `control ${selectedTarget?.type === "row" && selectedTarget.index === row ? "active" : ""}`;
+        rowButton.style.backgroundColor = rowColors[row] || "#f6e5c9";
+        rowButton.textContent = rowColors[row] ? "" : "F";
+        rowButton.title = `Fila ${row + 1}`;
+        rowButton.dataset.rowControl = row;
+        rowButton.addEventListener("pointerdown", () => pressElement(rowButton));
+        rowButton.addEventListener("click", () => selectTarget("row", row));
+        playMatrix.appendChild(rowButton);
+
+        for (let col = 0; col < SIZE; col += 1) {
+          const key = cellKey(row, col);
+          const expected = puzzle.clues.get(key);
+          const actual = getPlayCellColor(row, col);
+          const isClue = puzzle.clues.has(key);
+          const isCorrect = isClue && expected.toLowerCase() === actual.toLowerCase();
+          const cell = div("cell");
+          if (isCorrect) cell.classList.add("correct");
+          cell.style.backgroundColor = getPlayCellColor(row, col);
+          cell.title = "Casilla de mezcla";
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          cell.dataset.key = key;
+          playMatrix.appendChild(cell);
+        }
+      }
+    }
+
+    function renderObjectiveMatrix() {
+      objectiveMatrix.innerHTML = "";
+      objectiveMatrix.appendChild(div("corner"));
+
+      for (let col = 0; col < SIZE; col += 1) {
+        objectiveMatrix.appendChild(div("control", { visibility: "hidden" }));
+      }
+
+      for (let row = 0; row < SIZE; row += 1) {
+        objectiveMatrix.appendChild(div("control", { visibility: "hidden" }));
+        for (let col = 0; col < SIZE; col += 1) {
+          const key = cellKey(row, col);
+          const isClue = puzzle.clues.has(key);
+          const expected = puzzle.clues.get(key);
+          const actual = getPlayCellColor(row, col);
+          const isCorrect = isClue && expected.toLowerCase() === actual.toLowerCase();
+          const cell = div(`cell ${isClue ? "clue" : "empty"} ${isCorrect ? "correct" : ""}`);
+          cell.style.backgroundColor = getObjectiveCellColor(row, col);
+          cell.title = isClue ? "Pista fija" : "Sin pista";
+          cell.dataset.key = key;
+          objectiveMatrix.appendChild(cell);
+        }
+      }
+    }
+
+    function renderSwatches() {
+      swatches.innerHTML = "";
+      PALETTE.forEach((color) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "swatch";
+        button.style.backgroundColor = color.hex;
+        button.title = color.name;
+        button.disabled = !selectedTarget || isComplete;
+        button.dataset.hex = color.hex;
+        button.addEventListener("pointerdown", () => pressElement(button));
+        button.addEventListener("click", () => applyColor(color.hex));
+        swatches.appendChild(button);
+      });
+    }
+
+    function div(className, styles = {}) {
+      const el = document.createElement("div");
+      el.className = className;
+      Object.assign(el.style, styles);
+      return el;
+    }
+
+    function selectTarget(type, index) {
+      if (isComplete) return;
+      selectedTarget = { type, index };
+      renderAll({ animateCorrect: false, playCorrectSound: false });
+      animateSelection(selectedTarget);
+      soundSelect();
+    }
+
+    function applyColor(hex) {
+      if (!selectedTarget || isComplete) return;
+      const target = { ...selectedTarget };
+      if (selectedTarget.type === "row") {
+        rowColors[selectedTarget.index] = hex;
+      } else {
+        colColors[selectedTarget.index] = hex;
+      }
+      const newlyCorrect = renderAll({ animateCorrect: false, playCorrectSound: false });
+      animateColorApplication(target, newlyCorrect);
+      animateNewCorrect(newlyCorrect, 360);
+      if (newlyCorrect.length > 0) {
+        window.setTimeout(soundCorrect, 190);
+      }
+      soundPaint();
+    }
+
+    function checkComplete({ animateCorrect = true, playCorrectSound = true } = {}) {
+      const nextCorrectKeys = new Set();
+      let allOk = true;
+      for (const [key, expected] of puzzle.clues.entries()) {
+        const [row, col] = key.split("-").map(Number);
+        const correct = getPlayCellColor(row, col).toLowerCase() === expected.toLowerCase();
+        if (correct) {
+          nextCorrectKeys.add(key);
+        } else {
+          allOk = false;
+        }
+      }
+
+      const newlyCorrect = [...nextCorrectKeys].filter((key) => !previousCorrectKeys.has(key));
+      const wasComplete = isComplete;
+      isComplete = allOk;
+      previousCorrectKeys = nextCorrectKeys;
+      completeOverlay.classList.toggle("show", isComplete);
+      if (animateCorrect) animateNewCorrect(newlyCorrect);
+      if (playCorrectSound && newlyCorrect.length > 0) soundCorrect();
+      if (!wasComplete && isComplete) animateComplete();
+      if (!wasComplete && isComplete) soundComplete();
+      if (isComplete) {
+        statusEl.textContent = "Puzzle resuelto: todas las pistas coinciden.";
+      }
+      return newlyCorrect;
+    }
+
+    function updateStatus() {
+      if (isComplete) return;
+      if (!selectedTarget) {
+        paletteTitle.textContent = "Elige fila o columna";
+        statusEl.textContent = "Selecciona una fila o columna y aplica un color.";
+        return;
+      }
+
+      const label = selectedTarget.type === "row"
+        ? `Fila ${selectedTarget.index + 1}`
+        : `Columna ${selectedTarget.index + 1}`;
+      paletteTitle.textContent = label;
+      statusEl.textContent = `Seleccionado: ${label}. Elige un color del panel derecho.`;
+    }
+
+    function toggleView() {
+      showingObjective = !showingObjective;
+      playFace.className = `face ${showingObjective ? "hidden" : "visible"}`;
+      objectiveFace.className = `face objective ${showingObjective ? "visible" : "hidden"}`;
+      toggleObjective.textContent = showingObjective ? "Ver mi tablero" : "Ver tabla objetivo";
+      renderAll();
+      pressElement(toggleObjective);
+      animateObjectiveCells();
+      soundFlip();
+    }
+
+    function resetGame() {
+      selectedTarget = null;
+      showingObjective = false;
+      isComplete = false;
+      previousCorrectKeys = new Set();
+      rowColors = Array.from({ length: SIZE }, () => null);
+      colColors = Array.from({ length: SIZE }, () => null);
+      completeOverlay.classList.remove("show");
+      playFace.className = "face visible";
+      objectiveFace.className = "face objective hidden";
+      toggleObjective.textContent = "Ver tabla objetivo";
+      renderAll();
+      pressElement(resetButton);
+      animateReset();
+      soundReset();
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      soundToggle.classList.toggle("active", soundEnabled);
+      soundToggle.textContent = soundEnabled ? "Sonido on" : "Sonido off";
+      pressElement(soundToggle);
+      if (soundEnabled) {
+        ensureAudioContext();
+        soundSelect();
+      }
+    }
+
+    toggleObjective.addEventListener("pointerdown", () => pressElement(toggleObjective));
+    resetButton.addEventListener("pointerdown", (event) => pressElement(event.currentTarget));
+    soundToggle.addEventListener("pointerdown", (event) => pressElement(event.currentTarget));
+    toggleObjective.addEventListener("click", toggleView);
+    resetButton.addEventListener("click", resetGame);
+    soundToggle.addEventListener("click", toggleSound);
+    completeOverlay.addEventListener("click", () => completeOverlay.classList.remove("show"));
+
+    preloadSoundFiles();
+    renderAll();
+    animateIntro();
+  </script>
+</body>
+</html>

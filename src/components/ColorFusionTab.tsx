@@ -1,6 +1,12 @@
 
 import { Fragment, useMemo, useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { hexToRgb, rgbToHex } from '../lib/colorMath'
+import tapSoundSrc from '../assets/crucigama-sounds/tap.wav'
+import selectSoundSrc from '../assets/crucigama-sounds/select.wav'
+import paintSoundSrc from '../assets/crucigama-sounds/paint.wav'
+import correctSoundSrc from '../assets/crucigama-sounds/correct.wav'
+import flipSoundSrc from '../assets/crucigama-sounds/flip.wav'
+import completeSoundSrc from '../assets/crucigama-sounds/complete.wav'
 
 type ColorFusionTabProps = {
   dateKey: string
@@ -52,6 +58,17 @@ const CONFETTI_COLORS = [
   '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
   '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981',
 ]
+
+const SOUND_SOURCES = {
+  tap: tapSoundSrc,
+  select: selectSoundSrc,
+  paint: paintSoundSrc,
+  correct: correctSoundSrc,
+  flip: flipSoundSrc,
+  complete: completeSoundSrc,
+} as const
+
+type SoundName = keyof typeof SOUND_SOURCES
 
 const hashDate = (value: string): number => {
   let hash = 2166136261
@@ -190,17 +207,42 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
   // No validaciones, todo es reactivo
   const [isComplete, setIsComplete] = useState(false)
+  const [recentlyCorrectKeys, setRecentlyCorrectKeys] = useState<string[]>([])
   const confettiRef = useRef<HTMLDivElement>(null)
   const miniObjectiveRef = useRef<HTMLDivElement>(null)
   const boardFrameRef = useRef<HTMLDivElement>(null)
   const [overlayRects, setOverlayRects] = useState<{ mini: DOMRect; board: DOMRect } | null>(null)
+  const soundPlayersRef = useRef<Partial<Record<SoundName, HTMLAudioElement>>>({})
+  const previousCorrectRef = useRef<Set<string>>(new Set())
+  const previousCompleteRef = useRef(false)
+
+  const playSound = useCallback((name: SoundName, volume = 0.14) => {
+    const player = soundPlayersRef.current[name]
+    if (!player) {
+      return
+    }
+    const instance = new Audio(player.src)
+    instance.volume = volume
+    instance.play().catch(() => {})
+  }, [])
 
   const applyColor = useCallback((color: string) => {
     if (!selectedTarget) return
+    playSound('paint', 0.12)
     setAnimating({ type: selectedTarget.type, index: selectedTarget.index, color })
     setAnimationStep(0)
     pendingColorRef.current = { type: selectedTarget.type, index: selectedTarget.index, color }
-  }, [selectedTarget])
+  }, [selectedTarget, playSound])
+
+  useEffect(() => {
+    const players: Partial<Record<SoundName, HTMLAudioElement>> = {}
+    ;(Object.keys(SOUND_SOURCES) as SoundName[]).forEach((name) => {
+      const audio = new Audio(SOUND_SOURCES[name])
+      audio.preload = 'auto'
+      players[name] = audio
+    })
+    soundPlayersRef.current = players
+  }, [])
 
   // Animación smooth de relleno
   useEffect(() => {
@@ -229,7 +271,9 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   }, [animating, animationStep, puzzle.size])
 
   const openPalette = (target: Target) => {
+    playSound('select', 0.1)
     setSelectedTarget(target)
+    playSound('tap', 0.08)
   }
 
   // No runValidation, todo es reactivo
@@ -274,6 +318,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   // Chequeo de completado
   useEffect(() => {
     let allOk = true
+    const nowCorrectKeys = new Set<string>()
     for (let row = 0; row < puzzle.size; row++) {
       for (let col = 0; col < puzzle.size; col++) {
         const key = `${row}-${col}`
@@ -283,15 +328,29 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
           const actual = getPlayCellColor(row, col)
           if (expected?.toLowerCase() !== actual?.toLowerCase()) {
             allOk = false
-            break
+          } else {
+            nowCorrectKeys.add(key)
           }
         }
       }
-      if (!allOk) break
     }
+
+    const newlyCorrect = [...nowCorrectKeys].filter((key) => !previousCorrectRef.current.has(key))
+    if (newlyCorrect.length > 0) {
+      setRecentlyCorrectKeys(newlyCorrect)
+      playSound('correct', 0.13)
+      setTimeout(() => setRecentlyCorrectKeys([]), 420)
+    }
+    previousCorrectRef.current = nowCorrectKeys
+
+    if (allOk && !previousCompleteRef.current) {
+      playSound('complete', 0.16)
+    }
+    previousCompleteRef.current = allOk
+
     // Usar setTimeout para evitar cascada de renders
     setTimeout(() => setIsComplete(allOk), 0)
-  }, [rowColors, colColors, puzzle, getPlayCellColor])
+  }, [rowColors, colColors, puzzle, getPlayCellColor, playSound])
 
   useLayoutEffect(() => {
     const updateRects = () => {
@@ -392,7 +451,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
                     return (
                       <div
                         key={`play-cell-${row}-${col}`}
-                        className="mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)]"
+                        className={`mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)] ${recentlyCorrectKeys.includes(cellKey(row, col)) ? 'play-correct-pop' : ''}`}
                         style={{
                           backgroundColor: getPlayCellColor(row, col),
                         }}
@@ -409,7 +468,10 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
       {overlayRects && (
         <button
           type="button"
-          onClick={() => setShowObjective((previous) => !previous)}
+          onClick={() => {
+            playSound('flip', 0.1)
+            setShowObjective((previous) => !previous)
+          }}
           className="fixed z-[110] rounded-[2rem] border border-[#d7c9b0] bg-gradient-to-br from-[#f6efdf] to-[#e9ddc8] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_12px_24px_rgba(97,75,39,0.2)] transition-[transform,opacity] duration-500 ease-[cubic-bezier(.77,0,.18,1)]"
           style={{
             left: overlayRects.mini.left,
@@ -447,7 +509,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
                 return (
                   <div
                     key={`goal-cell-overlay-${row}-${col}`}
-                    className={`rounded-[3px] shadow-[inset_0_1px_0_rgba(255,255,255,0.38),inset_0_-1px_0_rgba(0,0,0,0.14),0_1px_3px_rgba(44,30,12,0.28)] ${isCorrect ? 'ring-2 ring-emerald-500' : ''}`}
+                    className={`rounded-[3px] shadow-[inset_0_1px_0_rgba(255,255,255,0.38),inset_0_-1px_0_rgba(0,0,0,0.14),0_1px_3px_rgba(44,30,12,0.28)] ${isCorrect ? 'ring-2 ring-emerald-500' : ''} ${recentlyCorrectKeys.includes(key) ? 'objective-correct-pop' : ''}`}
                     style={{
                       backgroundColor: getObjectiveCellColor(row, col),
                     }}
@@ -472,6 +534,22 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         }
         .mix-cell {
           border-radius: calc(var(--cell-size) * 0.08);
+        }
+        .play-correct-pop {
+          animation: play-correct-pop 420ms cubic-bezier(.61,1.6,.7,1);
+        }
+        .objective-correct-pop {
+          animation: objective-correct-pop 420ms cubic-bezier(.61,1.6,.7,1);
+        }
+        @keyframes play-correct-pop {
+          0% { transform: scale(0.92); }
+          72% { transform: scale(1.06); }
+          100% { transform: scale(1); }
+        }
+        @keyframes objective-correct-pop {
+          0% { transform: scale(0.88); }
+          72% { transform: scale(1.08); }
+          100% { transform: scale(1); }
         }
         
         @media (max-width: 1024px) {
