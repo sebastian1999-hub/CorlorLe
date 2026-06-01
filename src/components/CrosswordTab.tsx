@@ -150,25 +150,29 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     return map
   }, [answerCoords])
 
-  const unifiedClues = useMemo(() => {
-    const grouped = new Map<number, string[]>()
-    const allClues = [...puzzle.cluesAcross, ...puzzle.cluesDown].sort((a, b) =>
-      a.number - b.number || a.row - b.row || a.col - b.col,
-    )
+  const cluesAcrossUnique = useMemo(() => {
+    const sorted = [...puzzle.cluesAcross].sort((a, b) => a.number - b.number || a.row - b.row || a.col - b.col)
+    const seen = new Set<number>()
+    return sorted.filter((clue) => {
+      if (seen.has(clue.number)) {
+        return false
+      }
+      seen.add(clue.number)
+      return true
+    })
+  }, [puzzle.cluesAcross])
 
-    for (const clue of allClues) {
-      const list = grouped.get(clue.number) ?? []
-      list.push(clue.clue)
-      grouped.set(clue.number, list)
-    }
-
-    return [...grouped.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([number, clues]) => ({
-        number,
-        clue: clues.join(' / '),
-      }))
-  }, [puzzle.cluesAcross, puzzle.cluesDown])
+  const cluesDownUnique = useMemo(() => {
+    const sorted = [...puzzle.cluesDown].sort((a, b) => a.number - b.number || a.row - b.row || a.col - b.col)
+    const seen = new Set<number>()
+    return sorted.filter((clue) => {
+      if (seen.has(clue.number)) {
+        return false
+      }
+      seen.add(clue.number)
+      return true
+    })
+  }, [puzzle.cluesDown])
 
   const isValidationAnimating = validationPhase !== 'idle'
 
@@ -847,10 +851,21 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
 
         <div className="space-y-4">
           <article className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Pistas</h3>
+            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Filas</h3>
             <ul className="mt-2 max-h-[28rem] space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
-              {unifiedClues.map((clue) => (
-                <li key={`U-${clue.number}`}>
+              {cluesAcrossUnique.map((clue, index) => (
+                <li key={`A-${clue.number}-${index}`}>
+                  <span className="font-bold">{clue.number}.</span> {clue.clue}
+                </li>
+              ))}
+            </ul>
+          </article>
+
+          <article className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-700">Columnas</h3>
+            <ul className="mt-2 max-h-[28rem] space-y-2 overflow-auto pr-1 text-sm text-zinc-700">
+              {cluesDownUnique.map((clue, index) => (
+                <li key={`D-${clue.number}-${index}`}>
                   <span className="font-bold">{clue.number}.</span> {clue.clue}
                 </li>
               ))}

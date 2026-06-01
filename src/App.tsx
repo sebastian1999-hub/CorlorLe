@@ -202,6 +202,7 @@ function App() {
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
   const [activeGameTab, setActiveGameTab] = useState<GameTab>('dailyColor')
   const [crosswordView, setCrosswordView] = useState<'home' | 'play'>('home')
+  const [crucigamaView, setCrucigamaView] = useState<'home' | 'play'>('home')
   const [hasCompletedCrosswordToday, setHasCompletedCrosswordToday] = useState(false)
   const [viewDate, setViewDate] = useState<string>(() => todayKey())
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
@@ -1781,6 +1782,11 @@ function App() {
   }
 
   const handlePrimaryAction = () => {
+    if (activeGameTab === 'animatedCharacter') {
+      setCrucigamaView('play')
+      return
+    }
+
     if (activeGameTab === 'crossword') {
       if (hasCompletedCrosswordToday) {
         return
@@ -1833,14 +1839,16 @@ function App() {
                         isBeforeFirstPlayableViewDate
                       )
                     : activeGameTab === 'crossword'
-                      ? hasCompletedCrosswordToday
-                      : true}
+                        ? hasCompletedCrosswordToday
+                        : false}
                   className="rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {activeGameTab === 'crossword'
                     ? hasCompletedCrosswordToday
                       ? 'Crucigrama completado'
                       : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
+                      : activeGameTab === 'animatedCharacter'
+                        ? (crucigamaView === 'play' ? 'CruciGama abierto' : 'Ir al CruciGama')
                     : !isColorGameActive
                       ? 'Disponible pronto'
                       : isBeforeFirstPlayableViewDate
@@ -1920,6 +1928,7 @@ function App() {
                 onClick={() => {
                   setActiveGameTab('animatedCharacter')
                   setCrosswordView('home')
+                  setCrucigamaView('home')
                   setStage('home')
                 }}
                 className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
@@ -2012,7 +2021,7 @@ function App() {
         )}
 
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
-          <ColorFusionTab dateKey={date} />
+          <ColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} />
         )}
 
         {isPreviewStage && difficulty && (

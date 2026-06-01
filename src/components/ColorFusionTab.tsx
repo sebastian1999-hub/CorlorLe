@@ -10,6 +10,7 @@ import completeSoundSrc from '../assets/crucigama-sounds/complete.wav'
 
 type ColorFusionTabProps = {
   dateKey: string
+  showGame: boolean
 }
 
 type Target =
@@ -52,10 +53,17 @@ const PALETTE_OPTIONS: PaletteOption[] = [
   { hex: '#B493C4', group: 'Morados' },
 ]
 
+const INTRO_PALETTE_PREVIEW = [
+  '#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1', '#5B4788',
+  '#E0E0E0', '#EF9A9A', '#FFCC80', '#A5D6A7', '#90CAF9', '#B493C4',
+]
+
+const INTRO_COLUMN_SELECTOR_COLORS = ['#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1']
+const INTRO_ROW_SELECTOR_COLORS = ['#E0E0E0', '#EF9A9A', '#FFCC80', '#A5D6A7', '#90CAF9']
+
 const PALETTE_HEX = PALETTE_OPTIONS.map((entry) => entry.hex)
 
 const CONFETTI_COLORS = [
-  '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
   '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981',
 ]
 
@@ -194,7 +202,7 @@ const buildDailyPuzzle = (dateKey: string): FusionPuzzle => {
 }
 
 
-export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
+export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
   // Estado para toggle de cuadrícula
   const [showObjective, setShowObjective] = useState(false)
   const puzzle = useMemo(() => buildDailyPuzzle(dateKey), [dateKey])
@@ -386,13 +394,13 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
           </div>
         </div>
       )}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-black sm:text-2xl" aria-label="CruciGama">
+      {!showGame ? (
+        <div className="mx-auto flex max-w-[920px] flex-col items-center gap-5 rounded-[1.8rem] border border-[#ddceb5] bg-gradient-to-b from-[#f8f2e7] via-[#f3ecde] to-[#eee3d2] p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_24px_35px_rgba(94,72,38,0.24)] sm:gap-6 sm:p-6 lg:p-7">
+          <h2 className="text-xl font-black sm:text-3xl" aria-label="CruciGama">
             <span className="inline-flex items-center gap-[1px]">
               {CRUCIGAMA_LABEL.split('').map((char, index) => (
                 <span
-                  key={`crucigama-title-char-${index}`}
+                  key={`crucigama-title-char-intro-${index}`}
                   style={{ color: CRUCIGAMA_GRADIENT[Math.min(index, CRUCIGAMA_GRADIENT.length - 1)] }}
                 >
                   {char}
@@ -400,72 +408,178 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
               ))}
             </span>
           </h2>
-          <div ref={miniObjectiveRef} className="mt-2 h-[108px] w-[108px]" />
-        </div>
-        {/* Sin contador de validaciones */}
-      </div>
 
-      <div className="cruci-layout relative flex items-start justify-center">
-        <div
-          className="flex justify-center"
-        >
-          <div ref={boardFrameRef} className="mx-auto w-max rounded-[2rem] border border-[#d7c9b0] bg-gradient-to-br from-[#f6efdf] to-[#e9ddc8] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_12px_24px_rgba(97,75,39,0.2)]">
-            <div
-              className="grid"
-              style={{
-                gap: 'var(--grid-gap)',
-                gridTemplateColumns: `var(--selector-size) repeat(${puzzle.size}, var(--cell-size))`,
-                gridTemplateRows: `var(--selector-size) repeat(${puzzle.size}, var(--cell-size))`,
-              }}
-            >
-              <div className="rounded bg-transparent" />
-              {Array.from({ length: puzzle.size }, (_, col) => {
-                const selected = selectedTarget?.type === 'col' && selectedTarget.index === col
-                const colColor = colColors[col]
-                return (
-                  <button
-                    key={`col-${col}`}
-                    type="button"
-                    onClick={() => openPalette({ type: 'col', index: col })}
-                    className={`selector-chip relative flex items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.8),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(91,72,39,0.32)] transition ${selected ? 'ring-4 ring-emerald-400' : ''}`}
-                    style={{
-                      backgroundColor: colColor ?? '#efe6d6',
-                    }}
-                    title={`Columna ${col + 1}`}
-                  />
-                )
-              })}
-              {Array.from({ length: puzzle.size }, (_, row) => (
-                <Fragment key={`row-line-${row}`}>
-                  <button
-                    key={`row-${row}`}
-                    type="button"
-                    onClick={() => openPalette({ type: 'row', index: row })}
-                    className={`selector-chip relative flex items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.8),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(91,72,39,0.32)] transition ${(selectedTarget?.type === 'row' && selectedTarget.index === row) ? 'ring-4 ring-emerald-400' : ''}`}
-                    style={{
-                      backgroundColor: rowColors[row] ?? '#efe6d6',
-                    }}
-                    title={`Fila ${row + 1}`}
-                  />
-                  {Array.from({ length: puzzle.size }, (_, col) => {
-                    return (
-                      <div
-                        key={`play-cell-${row}-${col}`}
-                        className={`mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)] ${recentlyCorrectKeys.includes(cellKey(row, col)) ? 'play-correct-pop' : ''}`}
-                        style={{
-                          backgroundColor: getPlayCellColor(row, col),
-                        }}
-                        title="Casilla de mezcla"
-                      />
-                    )
-                  })}
-                </Fragment>
+          <p className="max-w-[60ch] text-sm font-semibold leading-6 text-[#5a4631] sm:text-base">
+            Mezcla colores de filas y columnas hasta igualar todas las casillas de pista. Usa el botón superior
+            junto a Salir para entrar al mapa de hoy.
+          </p>
+
+          <div className="w-full rounded-[1.6rem] border border-[#d7c6a8] bg-[#f8f3ea] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-black text-[#4d3c2a]">Paleta</p>
+                <p className="text-xs font-semibold text-[#735a3d]">Los colores que se usan en el juego.</p>
+              </div>
+              <div className="rounded-full border border-[#d7c6a8] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-[#8a673f]">
+                12 tonos
+              </div>
+            </div>
+
+            <div className="grid grid-cols-6 gap-2 sm:gap-2.5">
+              {INTRO_PALETTE_PREVIEW.map((hex) => (
+                <div
+                  key={`preview-palette-${hex}`}
+                  className="palette-swatch h-10 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.18)] sm:h-12"
+                  style={{ backgroundColor: hex }}
+                  title={hex.toUpperCase()}
+                />
               ))}
             </div>
           </div>
+
+          <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+            <div className="flex flex-col items-center rounded-[1.6rem] border border-[#d7c6a8] bg-[#f8f3ea] px-3 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:px-4 sm:py-5 lg:px-5 lg:py-6">
+              <div className="mb-4 flex w-full items-center justify-between gap-2 text-left">
+                <div>
+                  <p className="text-sm font-black text-[#4d3c2a]">Vista de ejemplo</p>
+                  <p className="text-xs font-semibold text-[#735a3d]">Así se ve el mapa antes de jugar.</p>
+                </div>
+                <div className="rounded-full border border-[#d7c6a8] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-[#8a673f]">
+                  5 x 5
+                </div>
+              </div>
+
+              <div className="example-board mx-auto flex w-full justify-center overflow-x-auto overflow-y-hidden py-1">
+                <div className="grid grid-cols-[var(--example-label-size)_repeat(5,var(--example-cell-size))] gap-[var(--example-gap)]">
+                  <div />
+                  {INTRO_COLUMN_SELECTOR_COLORS.map((hex, index) => (
+                    <div
+                      key={`example-col-${hex}`}
+                      className={`flex h-[var(--example-label-height)] items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.78),inset_0_-3px_0_rgba(0,0,0,0.1),0_10px_14px_rgba(91,72,39,0.25)] ${index < 2 ? 'ring-2 ring-emerald-400' : ''}`}
+                      style={{ backgroundColor: hex }}
+                    >
+                    </div>
+                  ))}
+
+                  {INTRO_ROW_SELECTOR_COLORS.map((rowColor, rowIndex) => (
+                    <Fragment key={`example-row-${rowIndex}`}>
+                      <div
+                        className={`flex h-[var(--example-label-height)] items-center justify-center rounded-full border-2 border-[#c9b797] text-[9px] font-black shadow-[inset_0_3px_0_rgba(255,255,255,0.78),inset_0_-3px_0_rgba(0,0,0,0.1),0_10px_14px_rgba(91,72,39,0.25)] sm:text-xs ${rowIndex < 2 ? 'ring-2 ring-emerald-400' : ''}`}
+                        style={{ backgroundColor: rowColor }}
+                      >
+                      </div>
+                      {Array.from({ length: 5 }, (_, colIndex) => {
+                        const columnColor = INTRO_COLUMN_SELECTOR_COLORS[colIndex]
+                        const mixedColor = mixColors(rowColor, columnColor)
+                        return (
+                          <div
+                            key={`example-cell-${rowIndex}-${colIndex}`}
+                            className="example-cell relative rounded-[7px] border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(44,30,12,0.18)] sm:rounded-[9px]"
+                            style={{ backgroundColor: mixedColor }}
+                          >
+                          </div>
+                        )
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[1.6rem] border border-[#d7c6a8] bg-[#f8f3ea] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:p-4 lg:p-5">
+              <p className="text-sm font-black text-[#4d3c2a]">Cómo se juega</p>
+              <ol className="mt-3 space-y-3 text-left text-xs font-semibold text-[#735a3d]">
+                <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">1. Usa el botón superior de CruciGama para entrar al mapa de hoy.</li>
+                <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">2. Elige una fila o columna y aplícale un color desde la paleta.</li>
+                <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">3. Cuando una casilla coincide con la pista, se marca en verde.</li>
+              </ol>
+            </div>
+          </div>
         </div>
-      </div>
-      {overlayRects && (
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-black sm:text-2xl" aria-label="CruciGama">
+                <span className="inline-flex items-center gap-[1px]">
+                  {CRUCIGAMA_LABEL.split('').map((char, index) => (
+                    <span
+                      key={`crucigama-title-char-${index}`}
+                      style={{ color: CRUCIGAMA_GRADIENT[Math.min(index, CRUCIGAMA_GRADIENT.length - 1)] }}
+                    >
+                      {char}
+                    </span>
+                  ))}
+                </span>
+              </h2>
+              <div ref={miniObjectiveRef} className="mt-2 h-[108px] w-[108px]" />
+            </div>
+            {/* Sin contador de validaciones */}
+          </div>
+
+          <div className="cruci-layout relative flex items-start justify-center">
+            <div
+              className="flex justify-center"
+            >
+              <div ref={boardFrameRef} className="mx-auto w-max rounded-[2rem] border border-[#d7c9b0] bg-gradient-to-br from-[#f6efdf] to-[#e9ddc8] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_12px_24px_rgba(97,75,39,0.2)]">
+                <div
+                  className="grid"
+                  style={{
+                    gap: 'var(--grid-gap)',
+                    gridTemplateColumns: `var(--selector-size) repeat(${puzzle.size}, var(--cell-size))`,
+                    gridTemplateRows: `var(--selector-size) repeat(${puzzle.size}, var(--cell-size))`,
+                  }}
+                >
+                  <div className="rounded bg-transparent" />
+                  {Array.from({ length: puzzle.size }, (_, col) => {
+                    const selected = selectedTarget?.type === 'col' && selectedTarget.index === col
+                    const colColor = colColors[col]
+                    return (
+                      <button
+                        key={`col-${col}`}
+                        type="button"
+                        onClick={() => openPalette({ type: 'col', index: col })}
+                        className={`selector-chip relative flex items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.8),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(91,72,39,0.32)] transition ${selected ? 'ring-4 ring-emerald-400' : ''}`}
+                        style={{
+                          backgroundColor: colColor ?? '#efe6d6',
+                        }}
+                        title={`Columna ${col + 1}`}
+                      />
+                    )
+                  })}
+                  {Array.from({ length: puzzle.size }, (_, row) => (
+                    <Fragment key={`row-line-${row}`}>
+                      <button
+                        key={`row-${row}`}
+                        type="button"
+                        onClick={() => openPalette({ type: 'row', index: row })}
+                        className={`selector-chip relative flex items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.8),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(91,72,39,0.32)] transition ${(selectedTarget?.type === 'row' && selectedTarget.index === row) ? 'ring-4 ring-emerald-400' : ''}`}
+                        style={{
+                          backgroundColor: rowColors[row] ?? '#efe6d6',
+                        }}
+                        title={`Fila ${row + 1}`}
+                      />
+                      {Array.from({ length: puzzle.size }, (_, col) => {
+                        return (
+                          <div
+                            key={`play-cell-${row}-${col}`}
+                            className={`mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)] ${recentlyCorrectKeys.includes(cellKey(row, col)) ? 'play-correct-pop' : ''}`}
+                            style={{
+                              backgroundColor: getPlayCellColor(row, col),
+                            }}
+                            title="Casilla de mezcla"
+                          />
+                        )
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      {showGame && overlayRects && (
         <button
           type="button"
           onClick={() => {
@@ -535,6 +649,10 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
         .mix-cell {
           border-radius: calc(var(--cell-size) * 0.08);
         }
+        .example-cell {
+          aspect-ratio: 1 / 1;
+          width: var(--example-cell-size);
+        }
         .play-correct-pop {
           animation: play-correct-pop 420ms cubic-bezier(.61,1.6,.7,1);
         }
@@ -577,15 +695,38 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
             --selector-size: 32px;
             --grid-gap: 6px;
           }
+          .example-board {
+            --example-label-size: 12px;
+            --example-cell-size: 16px;
+            --example-gap: 2px;
+            --example-label-height: 18px;
+          }
           .palette-swatch {
             width: 38px;
             height: 38px;
             border-radius: 10px;
           }
         }
+        @media (min-width: 481px) {
+          .example-board {
+            --example-label-size: 22px;
+            --example-cell-size: 28px;
+            --example-gap: 4px;
+            --example-label-height: 24px;
+          }
+        }
+        @media (min-width: 769px) {
+          .example-board {
+            --example-label-size: 36px;
+            --example-cell-size: 44px;
+            --example-gap: 8px;
+            --example-label-height: 40px;
+          }
+        }
       `}</style>
 
-      <div
+      {showGame && (
+        <div
         className="relative z-[100] mx-auto mt-6 w-full max-w-[640px] rounded-[1.75rem] border border-[#d8cab1] bg-gradient-to-br from-[#f5efdf] to-[#eadfc9] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_20px_30px_rgba(86,69,37,0.28)] md:absolute md:right-0 md:top-8 md:mt-0 md:w-max md:max-w-none md:p-4"
         aria-hidden={false}
       >
@@ -633,6 +774,7 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Sin botón de validar, cuadrícula reactiva */}
     </section>
