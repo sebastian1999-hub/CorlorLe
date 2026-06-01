@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
-import { ColorFusionTab } from './components/ColorFusionTab'
-import { CrosswordTab } from './components/CrosswordTab'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
 import { Records } from './components/Records'
@@ -30,6 +28,9 @@ import type {
   TournamentParticipant,
   TournamentRun,
 } from './types'
+
+const LazyColorFusionTab = lazy(() => import('./components/ColorFusionTab').then((module) => ({ default: module.ColorFusionTab })))
+const LazyCrosswordTab = lazy(() => import('./components/CrosswordTab').then((module) => ({ default: module.CrosswordTab })))
 
 type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
 type GameTab = 'dailyColor' | 'crossword' | 'animatedCharacter'
@@ -2012,16 +2013,20 @@ function App() {
         )}
 
         {stage === 'home' && activeGameTab === 'crossword' && (
-          <CrosswordTab
-            session={session}
-            dateKey={date}
-            showGame={crosswordView === 'play'}
-            onBackToPodium={() => setCrosswordView('home')}
-          />
+          <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando crucigrama...</section>}>
+            <LazyCrosswordTab
+              session={session}
+              dateKey={date}
+              showGame={crosswordView === 'play'}
+              onBackToPodium={() => setCrosswordView('home')}
+            />
+          </Suspense>
         )}
 
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
-          <ColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
+          <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando CruciGama...</section>}>
+            <LazyColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
+          </Suspense>
         )}
 
         {isPreviewStage && difficulty && (
