@@ -35,6 +35,7 @@ type CrucigamaMode = 'normal' | 'extreme'
 type CrucigamaAttempt = {
   userId: string
   username: string
+  avatarUrl?: string
   dateKey: string
   mode: CrucigamaMode
   seconds: number
@@ -320,15 +321,20 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
 
       const userIds = [...new Set(allAttempts.map((attempt) => attempt.user_id))]
       let usernameById: Record<string, string> = {}
+      let avatarUrlById: Record<string, string | undefined> = {}
 
       if (userIds.length > 0) {
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('id,username')
+          .select('id,username,avatar_url')
           .in('id', userIds)
 
         usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
           acc[profile.id] = profile.username
+          return acc
+        }, {})
+        avatarUrlById = (profilesData ?? []).reduce<Record<string, string | undefined>>((acc, profile) => {
+          acc[profile.id] = profile.avatar_url ?? undefined
           return acc
         }, {})
       }
@@ -336,6 +342,7 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
       const formatAttempt = (attempt: { user_id: string; date: string; mode: string; seconds: number; created_at: string }) => ({
         userId: attempt.user_id,
         username: usernameById[attempt.user_id] ?? `player-${attempt.user_id.slice(0, 6)}`,
+        avatarUrl: avatarUrlById[attempt.user_id],
         dateKey: attempt.date,
         mode: attempt.mode as CrucigamaMode,
         seconds: attempt.seconds,
@@ -634,26 +641,69 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
     }
   }, [showObjective, puzzle.size])
 
+  const renderCrucigamaRows = (attempts: CrucigamaAttempt[], emptyText: string) => {
+    if (leaderboardLoading) {
+      return (
+        <p className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-500">
+          Cargando leaderboard de hoy...
+        </p>
+      )
+    }
+
+    if (leaderboardError) {
+      return (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {leaderboardError}
+        </p>
+      )
+    }
+
+    if (attempts.length === 0) {
+      return (
+        <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-500">
+          {emptyText}
+        </p>
+      )
+    }
+
+    return (
+      <div className="space-y-2">
+        {attempts.slice(0, 10).map((attempt, index) => (
+          <article
+            key={`crucigama-attempt-row-${attempt.mode}-${attempt.userId}`}
+            className="grid grid-cols-[40px_36px_1fr_auto] items-center gap-2 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100 sm:grid-cols-[40px_40px_1fr_auto] sm:gap-3"
+          >
+            <span className="text-center font-bold text-amber-300">#{index + 1}</span>
+
+            {attempt.avatarUrl ? (
+              <img
+                src={attempt.avatarUrl}
+                alt={`Avatar de ${attempt.username}`}
+                className="h-9 w-9 rounded-full border border-zinc-600 object-cover sm:h-10 sm:w-10"
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-[10px] font-black uppercase text-zinc-300 sm:h-10 sm:w-10 sm:text-xs">
+                {attempt.username.slice(0, 2)}
+              </div>
+            )}
+
+            <p className="truncate text-sm font-black sm:text-base">{attempt.username}</p>
+            <p className="text-sm font-extrabold text-emerald-300 sm:text-base">{formatSeconds(attempt.seconds)}</p>
+          </article>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <section className="relative overflow-visible rounded-[2rem] border border-[#f6f6f5] bg-gradient-to-br from-[#f7f3ea] via-[#f2ecdf] to-[#ede5d7] p-4 shadow-[0_20px_40px_rgba(92,75,49,0.14)] sm:p-6">
       {showGame && (
         <div className="mb-4 flex items-center justify-between gap-2">
-          <div className="inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('game')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${activeTab === 'game' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Juego
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('leaderboard')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${activeTab === 'leaderboard' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Leaderboard
-            </button>
-          </div>
+          <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
+            {activeTab === 'leaderboard'
+              ? `Tabla diaria · ${leaderboardMode === 'extreme' ? 'Extremo' : 'Normal'}`
+              : `Reto diario · ${challengeMode === 'extreme' ? 'Extremo' : 'Normal'}`}
+          </p>
           {activeTab === 'game' && (
             <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
               Tiempo: {formatSeconds(elapsedSeconds)}
@@ -720,32 +770,7 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
               >
                 {hasCompletedTodayNormal ? 'Reto normal completado hoy' : 'Jugar reto diario normal'}
               </button>
-              <div className="mt-4 space-y-2">
-                {leaderboardAttempts.slice(0, 10).map((attempt, index) => (
-                  <article
-                    key={`crucigama-normal-attempt-${attempt.userId}`}
-                    className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
-                  >
-                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.username}</p>
-                    <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
-                  </article>
-                ))}
-                {leaderboardLoading && (
-                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                    Cargando leaderboard de hoy...
-                  </p>
-                )}
-                {leaderboardError && (
-                  <p className="rounded-xl border border-[#e1b0ad] bg-[#fff1f1] px-3 py-3 text-sm font-semibold text-[#9a3f39]">
-                    {leaderboardError}
-                  </p>
-                )}
-                {!leaderboardLoading && !leaderboardError && leaderboardAttempts.length === 0 && (
-                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                    Aún no hay tiempos en reto normal para hoy.
-                  </p>
-                )}
-              </div>
+              <div className="mt-4">{renderCrucigamaRows(leaderboardAttempts, 'Aún no hay tiempos en reto normal para hoy.')}</div>
             </div>
           ) : introTab === 'extreme' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
@@ -766,32 +791,7 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
               >
                 {hasCompletedTodayExtreme ? 'Reto extremo completado hoy' : 'Jugar reto diario extremo'}
               </button>
-              <div className="mt-4 space-y-2">
-                {extremeLeaderboardAttempts.slice(0, 10).map((attempt, index) => (
-                  <article
-                    key={`crucigama-extreme-attempt-${attempt.userId}`}
-                    className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
-                  >
-                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.username}</p>
-                    <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
-                  </article>
-                ))}
-                {leaderboardLoading && (
-                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                    Cargando leaderboard de hoy...
-                  </p>
-                )}
-                {leaderboardError && (
-                  <p className="rounded-xl border border-[#e1b0ad] bg-[#fff1f1] px-3 py-3 text-sm font-semibold text-[#9a3f39]">
-                    {leaderboardError}
-                  </p>
-                )}
-                {!leaderboardLoading && !leaderboardError && extremeLeaderboardAttempts.length === 0 && (
-                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                    Aún no hay tiempos en reto extremo para hoy.
-                  </p>
-                )}
-              </div>
+              <div className="mt-4">{renderCrucigamaRows(extremeLeaderboardAttempts, 'Aún no hay tiempos en reto extremo para hoy.')}</div>
             </div>
           ) : (
           <>
@@ -933,29 +933,9 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
           </div>
 
           <div className="mt-4 space-y-2">
-            {(leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts).slice(0, 10).map((attempt, index) => (
-              <article
-                key={`crucigama-attempt-${leaderboardMode}-${attempt.userId}`}
-                className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
-              >
-                <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.username}</p>
-                <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
-              </article>
-            ))}
-            {leaderboardLoading && (
-              <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                Cargando leaderboard de hoy...
-              </p>
-            )}
-            {leaderboardError && (
-              <p className="rounded-xl border border-[#e1b0ad] bg-[#fff1f1] px-3 py-3 text-sm font-semibold text-[#9a3f39]">
-                {leaderboardError}
-              </p>
-            )}
-            {!leaderboardLoading && !leaderboardError && (leaderboardMode === 'extreme' ? extremeLeaderboardAttempts.length : leaderboardAttempts.length) === 0 && (
-              <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                Aún no hay tiempos guardados. Completa una partida para registrar tu marca.
-              </p>
+            {renderCrucigamaRows(
+              leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts,
+              'Aún no hay tiempos guardados. Completa una partida para registrar tu marca.',
             )}
           </div>
         </div>
