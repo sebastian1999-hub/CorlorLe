@@ -1,5 +1,5 @@
 
-import { Fragment, useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import { Fragment, useMemo, useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { hexToRgb, rgbToHex } from '../lib/colorMath'
 
 type ColorFusionTabProps = {
@@ -41,9 +41,17 @@ const PALETTE_OPTIONS: PaletteOption[] = [
 
   { hex: '#0D47A1', group: 'Azules' },
   { hex: '#90CAF9', group: 'Azules' },
+
+  { hex: '#5B4788', group: 'Morados' },
+  { hex: '#B493C4', group: 'Morados' },
 ]
 
 const PALETTE_HEX = PALETTE_OPTIONS.map((entry) => entry.hex)
+
+const CONFETTI_COLORS = [
+  '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
+  '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981',
+]
 
 const hashDate = (value: string): number => {
   let hash = 2166136261
@@ -180,10 +188,12 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
   const [animationStep, setAnimationStep] = useState(0)
   const pendingColorRef = useRef<{ type: 'row' | 'col'; index: number; color: string } | null>(null)
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null)
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   // No validaciones, todo es reactivo
   const [isComplete, setIsComplete] = useState(false)
   const confettiRef = useRef<HTMLDivElement>(null)
+  const miniObjectiveRef = useRef<HTMLDivElement>(null)
+  const boardFrameRef = useRef<HTMLDivElement>(null)
+  const [overlayRects, setOverlayRects] = useState<{ mini: DOMRect; board: DOMRect } | null>(null)
 
   const applyColor = useCallback((color: string) => {
     if (!selectedTarget) return
@@ -220,7 +230,6 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
 
   const openPalette = (target: Target) => {
     setSelectedTarget(target)
-    setIsPaletteOpen(true)
   }
 
   // No runValidation, todo es reactivo
@@ -284,8 +293,27 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
     setTimeout(() => setIsComplete(allOk), 0)
   }, [rowColors, colColors, puzzle, getPlayCellColor])
 
+  useLayoutEffect(() => {
+    const updateRects = () => {
+      const mini = miniObjectiveRef.current?.getBoundingClientRect()
+      const board = boardFrameRef.current?.getBoundingClientRect()
+      if (!mini || !board) {
+        return
+      }
+      setOverlayRects({ mini, board })
+    }
+
+    updateRects()
+    window.addEventListener('resize', updateRects)
+    window.addEventListener('scroll', updateRects, true)
+    return () => {
+      window.removeEventListener('resize', updateRects)
+      window.removeEventListener('scroll', updateRects, true)
+    }
+  }, [showObjective, puzzle.size])
+
   return (
-    <section className="rounded-3xl border border-zinc-900/10 bg-white/90 p-4 shadow-lg backdrop-blur sm:p-6 relative overflow-visible">
+    <section className="relative overflow-visible rounded-[2rem] border border-[#f6f6f5] bg-gradient-to-br from-[#f7f3ea] via-[#f2ecdf] to-[#ede5d7] p-4 shadow-[0_20px_40px_rgba(92,75,49,0.14)] sm:p-6">
       {/* Mensaje de completado con explosión de colores */}
       {isComplete && (
         <div ref={confettiRef} className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
@@ -313,31 +341,22 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
               ))}
             </span>
           </h2>
+          <div ref={miniObjectiveRef} className="mt-2 h-[108px] w-[108px]" />
         </div>
         {/* Sin contador de validaciones */}
       </div>
 
-
-      <div className="flex justify-center mb-4">
-        <button
-          type="button"
-          className="px-4 py-2 rounded-full bg-emerald-100 text-emerald-800 font-bold shadow transition hover:bg-emerald-200"
-          onClick={() => setShowObjective((v) => !v)}
-        >
-          {showObjective ? 'Ver mi tablero' : 'Ver tabla objetivo'}
-        </button>
-      </div>
-
-      <div className="relative flex justify-center items-center min-h-[340px]">
+      <div className="cruci-layout relative flex items-start justify-center">
         <div
-          className={`absolute left-0 right-0 top-0 bottom-0 flip-card transition-transform duration-700 ease-in-out ${showObjective ? 'flip-card-hide' : 'flip-card-show'} flex justify-center`}
+          className="flex justify-center"
         >
-          <div className="mx-auto w-max p-0 bg-transparent">
+          <div ref={boardFrameRef} className="mx-auto w-max rounded-[2rem] border border-[#d7c9b0] bg-gradient-to-br from-[#f6efdf] to-[#e9ddc8] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_12px_24px_rgba(97,75,39,0.2)]">
             <div
-              className="grid gap-2"
+              className="grid"
               style={{
-                gridTemplateColumns: `40px repeat(${puzzle.size}, 48px)`,
-                gridTemplateRows: `40px repeat(${puzzle.size}, 48px)`,
+                gap: 'var(--grid-gap)',
+                gridTemplateColumns: `var(--selector-size) repeat(${puzzle.size}, var(--cell-size))`,
+                gridTemplateRows: `var(--selector-size) repeat(${puzzle.size}, var(--cell-size))`,
               }}
             >
               <div className="rounded bg-transparent" />
@@ -349,14 +368,12 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
                     key={`col-${col}`}
                     type="button"
                     onClick={() => openPalette({ type: 'col', index: col })}
-                    className={`relative flex items-center justify-center rounded-full border-2 border-zinc-400 shadow transition h-10 w-10 sm:h-8 sm:w-8 ${selected ? 'ring-4 ring-emerald-400' : ''}`}
+                    className={`selector-chip relative flex items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.8),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(91,72,39,0.32)] transition ${selected ? 'ring-4 ring-emerald-400' : ''}`}
                     style={{
-                      backgroundColor: colColor ?? 'transparent',
+                      backgroundColor: colColor ?? '#efe6d6',
                     }}
                     title={`Columna ${col + 1}`}
-                  >
-                    {!colColor && <span className="text-xs font-black text-amber-700">C</span>}
-                  </button>
+                  />
                 )
               })}
               {Array.from({ length: puzzle.size }, (_, row) => (
@@ -365,20 +382,17 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
                     key={`row-${row}`}
                     type="button"
                     onClick={() => openPalette({ type: 'row', index: row })}
-                    className={`relative flex items-center justify-center rounded-full border-2 border-zinc-400 shadow transition h-10 w-10 sm:h-8 sm:w-8 ${(selectedTarget?.type === 'row' && selectedTarget.index === row) ? 'ring-4 ring-emerald-400' : ''}`}
+                    className={`selector-chip relative flex items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.8),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(91,72,39,0.32)] transition ${(selectedTarget?.type === 'row' && selectedTarget.index === row) ? 'ring-4 ring-emerald-400' : ''}`}
                     style={{
-                      backgroundColor: rowColors[row] ?? 'transparent',
+                      backgroundColor: rowColors[row] ?? '#efe6d6',
                     }}
                     title={`Fila ${row + 1}`}
-                  >
-                    {!rowColors[row] && <span className="text-xs font-black text-amber-700">F</span>}
-                  </button>
+                  />
                   {Array.from({ length: puzzle.size }, (_, col) => {
-                    // const key = cellKey(row, col)
                     return (
                       <div
                         key={`play-cell-${row}-${col}`}
-                        className="rounded border border-black"
+                        className="mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)]"
                         style={{
                           backgroundColor: getPlayCellColor(row, col),
                         }}
@@ -391,126 +405,156 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
             </div>
           </div>
         </div>
-        <div
-          className={`absolute left-0 right-0 top-0 bottom-0 flip-card transition-transform duration-700 ease-in-out ${showObjective ? 'flip-card-show' : 'flip-card-hide'} flex justify-center`}
-        >
-          <div className="mx-auto w-max p-0 bg-transparent">
-            <div
-              className="grid gap-2"
-              style={{
-                gridTemplateColumns: `40px repeat(${puzzle.size}, 48px)`,
-                gridTemplateRows: `40px repeat(${puzzle.size}, 48px)`,
-              }}
-            >
-              {/* Selectores invisibles de columna */}
-              <div className="rounded bg-transparent" />
-              {Array.from({ length: puzzle.size }, (_, col) => (
-                <div
-                  key={`col-invisible-${col}`}
-                  className="h-10 w-10 sm:h-8 sm:w-8 rounded-full opacity-0"
-                />
-              ))}
-              {Array.from({ length: puzzle.size }, (_, row) => (
-                <Fragment key={`row-line-obj-${row}`}>
-                  {/* Selector invisible de fila */}
-                  <div
-                    key={`row-invisible-${row}`}
-                    className="h-10 w-10 sm:h-8 sm:w-8 rounded-full opacity-0"
-                  />
-                  {Array.from({ length: puzzle.size }, (_, col) => {
-                    const key = cellKey(row, col)
-                    const isClue = puzzle.clues.has(key)
-                    // ¿Está acertado?
-                    let isCorrect = false
-                    if (isClue) {
-                      const expected = puzzle.clues.get(key)
-                      const actual = getPlayCellColor(row, col)
-                      if (expected?.toLowerCase() === actual?.toLowerCase()) {
-                        isCorrect = true
-                      }
-                    }
-                    return (
-                      <div
-                        key={`goal-cell-${row}-${col}`}
-                        className={`rounded border ${isCorrect ? 'border-4 border-emerald-500' : 'border-black'}`}
-                        style={{
-                          backgroundColor: getObjectiveCellColor(row, col),
-                        }}
-                        title={isClue ? 'Pista fija' : 'Sin pista'}
-                      />
-                    )
-                  })}
-                </Fragment>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
+      {overlayRects && (
+        <button
+          type="button"
+          onClick={() => setShowObjective((previous) => !previous)}
+          className="fixed z-[110] rounded-[2rem] border border-[#d7c9b0] bg-gradient-to-br from-[#f6efdf] to-[#e9ddc8] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_12px_24px_rgba(97,75,39,0.2)] transition-[transform,opacity] duration-500 ease-[cubic-bezier(.77,0,.18,1)]"
+          style={{
+            left: overlayRects.mini.left,
+            top: overlayRects.mini.top,
+            width: overlayRects.mini.width,
+            height: overlayRects.mini.height,
+            transformOrigin: 'top left',
+            transform: showObjective
+              ? `translate(${overlayRects.board.left - overlayRects.mini.left}px, ${overlayRects.board.top - overlayRects.mini.top}px) scale(${overlayRects.board.width / overlayRects.mini.width}, ${overlayRects.board.height / overlayRects.mini.height})`
+              : 'translate(0px, 0px) scale(1)',
+            opacity: showObjective ? 1 : 0.95,
+          }}
+          aria-label={showObjective ? 'Ocultar tabla objetivo' : 'Mostrar tabla objetivo'}
+        >
+          <div
+            className="grid"
+            style={{
+              gap: '1px',
+              gridTemplateColumns: `repeat(${puzzle.size}, 14px)`,
+              gridTemplateRows: `repeat(${puzzle.size}, 14px)`,
+            }}
+          >
+            {Array.from({ length: puzzle.size }, (_, row) =>
+              Array.from({ length: puzzle.size }, (_, col) => {
+                const key = cellKey(row, col)
+                const isClue = puzzle.clues.has(key)
+                let isCorrect = false
+                if (isClue) {
+                  const expected = puzzle.clues.get(key)
+                  const actual = getPlayCellColor(row, col)
+                  if (expected?.toLowerCase() === actual?.toLowerCase()) {
+                    isCorrect = true
+                  }
+                }
+                return (
+                  <div
+                    key={`goal-cell-overlay-${row}-${col}`}
+                    className={`rounded-[3px] shadow-[inset_0_1px_0_rgba(255,255,255,0.38),inset_0_-1px_0_rgba(0,0,0,0.14),0_1px_3px_rgba(44,30,12,0.28)] ${isCorrect ? 'ring-2 ring-emerald-500' : ''}`}
+                    style={{
+                      backgroundColor: getObjectiveCellColor(row, col),
+                    }}
+                    title={isClue ? 'Pista fija' : 'Sin pista'}
+                  />
+                )
+              }),
+            )}
+          </div>
+        </button>
+      )}
       <style>{`
-        .flip-card {
-          perspective: 1400px;
-          transform-style: preserve-3d;
+        .cruci-layout {
+          --cell-size: 80px;
+          --selector-size: 56px;
+          --grid-gap: 12px;
+          min-height: calc(var(--selector-size) + (5 * var(--cell-size)) + (5 * var(--grid-gap)) + 44px);
         }
-        .flip-card-show {
-          transform: rotateY(0deg);
-          opacity: 1;
-          z-index: 2;
-          box-shadow: 0 8px 32px 0 rgba(60,60,60,0.10);
-          backface-visibility: hidden;
-          transition: transform 0.7s cubic-bezier(.77,0,.18,1), opacity 0.5s;
+        .selector-chip {
+          width: var(--selector-size);
+          height: var(--selector-size);
         }
-        .flip-card-hide {
-          transform: rotateY(-100deg);
-          opacity: 0;
-          z-index: 1;
-          pointer-events: none;
-          box-shadow: none;
-          backface-visibility: hidden;
-          transition: transform 0.7s cubic-bezier(.77,0,.18,1), opacity 0.5s;
+        .mix-cell {
+          border-radius: calc(var(--cell-size) * 0.08);
+        }
+        
+        @media (max-width: 1024px) {
+          .cruci-layout {
+            --cell-size: 66px;
+            --selector-size: 46px;
+            --grid-gap: 10px;
+          }
+        }
+        @media (max-width: 768px) {
+          .cruci-layout {
+            --cell-size: 52px;
+            --selector-size: 38px;
+            --grid-gap: 8px;
+          }
+          .palette-swatch {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+          }
+        }
+        @media (max-width: 480px) {
+          .cruci-layout {
+            --cell-size: 45px;
+            --selector-size: 32px;
+            --grid-gap: 6px;
+          }
+          .palette-swatch {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+          }
         }
       `}</style>
 
-      {isPaletteOpen && (
-        <div
-          className="fixed z-40 right-6 top-1/2 -translate-y-1/2 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl transition-transform duration-300 ease-out w-max"
-          aria-hidden={false}
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              {selectedTarget ? (selectedTarget.type === 'row' ? `Fila ${selectedTarget.index + 1}` : `Columna ${selectedTarget.index + 1}`) : ''}
-            </span>
+      <div
+        className="relative z-[100] mx-auto mt-6 w-full max-w-[640px] rounded-[1.75rem] border border-[#d8cab1] bg-gradient-to-br from-[#f5efdf] to-[#eadfc9] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_20px_30px_rgba(86,69,37,0.28)] md:absolute md:right-0 md:top-8 md:mt-0 md:w-max md:max-w-none md:p-4"
+        aria-hidden={false}
+      >
+        <div className="grid grid-cols-6 gap-2.5 md:hidden">
+          {PALETTE_OPTIONS.map((option) => (
             <button
+              key={`mobile-${option.group}-${option.hex}`}
               type="button"
-              onClick={() => setIsPaletteOpen(false)}
-              className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100"
-              aria-label="Cerrar paleta"
-            >
-              ×
-            </button>
-          </div>
-          <div className="space-y-2">
-            {['Neutros', 'Rojos', 'Naranjas', 'Verdes', 'Azules'].map((group) => (
-              <div key={`palette-row-${group}`} className="flex flex-wrap gap-2">
-                {PALETTE_OPTIONS
-                  .filter((option) => option.group === group)
-                  .map((option) => (
-                    <button
-                      key={`${group}-${option.hex}`}
-                      type="button"
-                      onClick={() => {
-                        applyColor(option.hex)
-                        setIsPaletteOpen(false)
-                      }}
-                      className="h-9 w-9 rounded border border-zinc-300 transition hover:scale-105 sm:h-8 sm:w-8"
-                      style={{ backgroundColor: option.hex }}
-                      title={option.hex.toUpperCase()}
-                    />
-                  ))}
-              </div>
-            ))}
-          </div>
+              onClick={() => {
+                if (!selectedTarget) {
+                  return
+                }
+                applyColor(option.hex)
+              }}
+              className="palette-swatch h-14 w-14 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.35)] transition hover:-translate-y-0.5 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ backgroundColor: option.hex }}
+              title={option.hex.toUpperCase()}
+              disabled={!selectedTarget}
+            />
+          ))}
         </div>
-      )}
+
+        <div className="hidden space-y-2.5 md:block">
+          {['Neutros', 'Rojos', 'Naranjas', 'Verdes', 'Azules', 'Morados'].map((group) => (
+            <div key={`palette-row-${group}`} className="flex flex-wrap gap-2.5">
+              {PALETTE_OPTIONS
+                .filter((option) => option.group === group)
+                .map((option) => (
+                  <button
+                    key={`${group}-${option.hex}`}
+                    type="button"
+                    onClick={() => {
+                      if (!selectedTarget) {
+                        return
+                      }
+                      applyColor(option.hex)
+                    }}
+                    className="palette-swatch h-14 w-14 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.35)] transition hover:-translate-y-0.5 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ backgroundColor: option.hex }}
+                    title={option.hex.toUpperCase()}
+                    disabled={!selectedTarget}
+                  />
+                ))}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Sin botón de validar, cuadrícula reactiva */}
     </section>
@@ -521,11 +565,6 @@ export function ColorFusionTab({ dateKey }: ColorFusionTabProps) {
 // ...existing code...
 
 function ConfettiExplosion() {
-  // 18 confetti pieces, random color/angle, pero estables
-  const colors = [
-    '#F97316', '#FB923C', '#FACC15', '#84CC16', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#A855F7',
-    '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981'
-  ]
   // Generar datos estables
   const confettiData = useMemo(() => {
     return Array.from({ length: 18 }, (_, i) => {
@@ -542,11 +581,11 @@ function ConfettiExplosion() {
       const dist = 80 + rand(seed + 1) * 60
       const x = Math.cos(angle) * dist
       const y = Math.sin(angle) * dist
-      const color = colors[i % colors.length]
+      const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length]
       const delay = rand(seed + 2) * 0.2
       return { i, x, y, angle, color, delay }
     })
-  }, [colors])
+  }, [])
   return <>
     {confettiData.map(({ i, x, y, angle, color, delay }) => (
       <span
