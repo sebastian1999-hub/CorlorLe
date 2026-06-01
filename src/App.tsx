@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { HsvPicker } from './components/HsvPicker'
 import { Leaderboard } from './components/Leaderboard'
+import { ProfileTab } from './components/ProfileTab'
 import { Records } from './components/Records'
 import { UNAUTHORIZED_ACCESS_MESSAGE, verifyAuthorizedUser } from './lib/authGuard'
 import { colorErrorPercent, hsvToHex } from './lib/colorMath'
@@ -33,7 +34,7 @@ const LazyColorFusionTab = lazy(() => import('./components/ColorFusionTab').then
 const LazyCrosswordTab = lazy(() => import('./components/CrosswordTab').then((module) => ({ default: module.CrosswordTab })))
 
 type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
-type GameTab = 'dailyColor' | 'crossword' | 'animatedCharacter'
+type GameTab = 'dailyColor' | 'crossword' | 'animatedCharacter' | 'profile'
 
 type ResultState = {
   targetHex: string
@@ -75,6 +76,12 @@ type TournamentMatchView = {
 type TournamentRoundView = {
   roundNumber: number
   matches: TournamentMatchView[]
+}
+
+type ProfileTarget = {
+  userId: string
+  username: string
+  avatarUrl?: string
 }
 
 const normalizeUsername = (value: string): string => value.trim().toLowerCase()
@@ -228,6 +235,7 @@ function App() {
   const [recordsLowestScore, setRecordsLowestScore] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsMostFirstPlaces, setRecordsMostFirstPlaces] = useState<Array<{ userId: string; username: string; value: number; valueLabel: string; targetColor?: string; userColor?: string }>>([])
   const [recordsLoading, setRecordsLoading] = useState(false)
+  const [profileTarget, setProfileTarget] = useState<ProfileTarget | null>(null)
 
   const date = useMemo(() => todayKey(), [])
   const urlSearchParams = useMemo(() => {
@@ -260,6 +268,20 @@ function App() {
     }
     return fallbackUsername(session?.user.email, session?.user.id ?? 'anon')
   }, [profileUsername, session])
+  const activeProfileTarget = useMemo<ProfileTarget | null>(() => {
+    if (!session) {
+      return null
+    }
+
+    if (profileTarget) {
+      return profileTarget
+    }
+
+    return {
+      userId: session.user.id,
+      username: currentUsername,
+    }
+  }, [currentUsername, profileTarget, session])
   const isLaraUser = useMemo(
     () => normalizeUsername(currentUsername) === NO_TIMER_USERNAME,
     [currentUsername],
@@ -948,15 +970,20 @@ function App() {
     const dailyUserIds = [...new Set(dailyAttempts.map((a) => a.user_id))]
 
     let usernameById: Record<string, string> = {}
+    let avatarUrlById: Record<string, string | undefined> = {}
 
     if (dailyUserIds.length > 0) {
       const { data: profilesData } = await supabase
         .from('profiles')
-        .select('id,username')
+        .select('id,username,avatar_url')
         .in('id', dailyUserIds)
 
       usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
         acc[profile.id] = profile.username
+        return acc
+      }, {})
+      avatarUrlById = (profilesData ?? []).reduce<Record<string, string | undefined>>((acc, profile) => {
+        acc[profile.id] = profile.avatar_url ?? undefined
         return acc
       }, {})
     }
@@ -983,6 +1010,7 @@ function App() {
         })(),
         totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
         gamesPlayed: userAttempts.length,
+        avatarUrl: avatarUrlById[uid],
         userColor: userAttempts[0]?.user_color,
         targetColor: userAttempts[0]?.target_color,
         accuracyPercent,
@@ -1045,15 +1073,20 @@ function App() {
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
 
     let usernameById: Record<string, string> = {}
+    let avatarUrlById: Record<string, string | undefined> = {}
 
     if (userIds.length > 0) {
       const { data: profilesData } = await supabase
         .from('profiles')
-        .select('id,username')
+        .select('id,username,avatar_url')
         .in('id', userIds)
 
       usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
         acc[profile.id] = profile.username
+        return acc
+      }, {})
+      avatarUrlById = (profilesData ?? []).reduce<Record<string, string | undefined>>((acc, profile) => {
+        acc[profile.id] = profile.avatar_url ?? undefined
         return acc
       }, {})
     }
@@ -1068,6 +1101,7 @@ function App() {
             uid === session.user.id ? session.user.email : undefined,
             uid,
           ),
+        avatarUrl: avatarUrlById[uid],
         totalScore: userAttempts.reduce((sum, a) => sum + a.score, 0),
         gamesPlayed: userAttempts.length,
       }
@@ -1779,10 +1813,27 @@ function App() {
   }
 
   const signOut = async () => {
+    setProfileTarget(null)
     await supabase.auth.signOut()
   }
 
+  const openProfileFromLeaderboard = useCallback((entry: LeaderboardEntry) => {
+    setProfileTarget({
+      userId: entry.userId,
+      username: entry.username,
+      avatarUrl: entry.avatarUrl,
+    })
+    setActiveGameTab('profile')
+    setCrosswordView('home')
+    setCrucigamaView('home')
+    setStage('home')
+  }, [])
+
   const handlePrimaryAction = () => {
+    if (activeGameTab === 'profile') {
+      return
+    }
+
     if (activeGameTab === 'animatedCharacter') {
       setCrucigamaView('play')
       return
@@ -1830,7 +1881,7 @@ function App() {
               </div>
 
               <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[290px]">
-                {activeGameTab !== 'animatedCharacter' && (
+                {activeGameTab !== 'animatedCharacter' && activeGameTab !== 'profile' && (
                   <button
                     type="button"
                     onClick={handlePrimaryAction}
@@ -1893,7 +1944,7 @@ function App() {
               </div>
             </div>
 
-            <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-2 sm:grid-cols-3">
+            <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-2 sm:grid-cols-4">
               <button
                 type="button"
                 onClick={() => {
@@ -1949,6 +2000,23 @@ function App() {
                   ))}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveGameTab('profile')
+                  setProfileTarget(null)
+                  setCrosswordView('home')
+                  setCrucigamaView('home')
+                  setStage('home')
+                }}
+                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+                  activeGameTab === 'profile'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'bg-white text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Perfil
+              </button>
             </nav>
           </div>
         </header>
@@ -1992,6 +2060,7 @@ function App() {
                   title={`Clasificacion${viewDate === date ? ' del dia' : ''} · ${displayDate}`}
                   showColors={viewDate < date || hasPlayedOnViewDate}
                   animationToken={viewDate}
+                  onAvatarClick={openProfileFromLeaderboard}
                 />
             </div>
           </div>
@@ -2027,6 +2096,14 @@ function App() {
           <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando CruciGama...</section>}>
             <LazyColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
           </Suspense>
+        )}
+
+        {stage === 'home' && activeGameTab === 'profile' && activeProfileTarget && (
+          <ProfileTab
+            session={session}
+            viewerUsername={currentUsername}
+            profileUser={activeProfileTarget}
+          />
         )}
 
         {isPreviewStage && difficulty && (

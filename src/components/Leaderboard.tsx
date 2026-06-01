@@ -9,9 +9,10 @@ type LeaderboardProps = {
   title?: string
   showColors?: boolean
   animationToken?: string
+  onAvatarClick?: (entry: LeaderboardEntry) => void
 }
 
-export function Leaderboard({ entries, title = 'Clasificacion general', showColors = true, animationToken }: LeaderboardProps) {
+export function Leaderboard({ entries, title = 'Clasificacion general', showColors = true, animationToken, onAvatarClick }: LeaderboardProps) {
   const medalByIndex = [
     { src: goldMedal, alt: 'Medalla de oro', className: 'h-10 w-10 sm:h-12 sm:w-12' },
     { src: silverMedal, alt: 'Medalla de plata', className: 'h-9 w-9 sm:h-11 sm:w-11' },
@@ -78,6 +79,37 @@ export function Leaderboard({ entries, title = 'Clasificacion general', showColo
                   ) : (
                     <div className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-600 text-xs font-black text-zinc-300 sm:h-10 sm:w-10 sm:text-sm">
                       {rank}
+                    </div>
+                  )}
+
+                  {onAvatarClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onAvatarClick(entry)}
+                      className="rounded-full transition hover:scale-105"
+                      title={`Ver perfil de ${entry.username}`}
+                    >
+                      {entry.avatarUrl ? (
+                        <img
+                          src={entry.avatarUrl}
+                          alt={`Avatar de ${entry.username}`}
+                          className="h-8 w-8 rounded-full border border-zinc-600 object-cover sm:h-10 sm:w-10"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-[10px] font-black uppercase text-zinc-300 sm:h-10 sm:w-10 sm:text-xs">
+                          {entry.username.slice(0, 2)}
+                        </div>
+                      )}
+                    </button>
+                  ) : entry.avatarUrl ? (
+                    <img
+                      src={entry.avatarUrl}
+                      alt={`Avatar de ${entry.username}`}
+                      className="h-8 w-8 rounded-full border border-zinc-600 object-cover sm:h-10 sm:w-10"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-[10px] font-black uppercase text-zinc-300 sm:h-10 sm:w-10 sm:text-xs">
+                      {entry.username.slice(0, 2)}
                     </div>
                   )}
 

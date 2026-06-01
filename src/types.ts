@@ -27,6 +27,7 @@ export type AttemptRow = {
 export type LeaderboardEntry = {
   userId: string
   username: string
+  avatarUrl?: string
   totalScore: number
   gamesPlayed: number
   userColor?: string
