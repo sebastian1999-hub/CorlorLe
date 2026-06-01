@@ -134,6 +134,38 @@ create policy "Users can insert own crossword attempt"
 on public.crossword_attempts for insert
 with check (auth.uid() = user_id);
 
+-- Daily CruciGama attempts (time-based ranking: lower is better), split by mode.
+create table if not exists public.crucigama_attempts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date date not null,
+  mode text not null check (mode in ('normal', 'extreme')),
+  seconds double precision not null check (seconds >= 0),
+  created_at timestamptz not null default now(),
+  constraint crucigama_attempts_user_date_mode_unique unique (user_id, date, mode)
+);
+
+create index if not exists crucigama_attempts_date_mode_seconds_idx
+  on public.crucigama_attempts(date, mode, seconds asc);
+
+alter table public.crucigama_attempts enable row level security;
+
+drop policy if exists "CruciGama attempts are publicly readable" on public.crucigama_attempts;
+create policy "CruciGama attempts are publicly readable"
+on public.crucigama_attempts for select
+using (true);
+
+drop policy if exists "Users can insert own CruciGama attempt" on public.crucigama_attempts;
+create policy "Users can insert own CruciGama attempt"
+on public.crucigama_attempts for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own CruciGama attempt" on public.crucigama_attempts;
+create policy "Users can update own CruciGama attempt"
+on public.crucigama_attempts for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
 -- Tournament run metadata (one bracket per configured start date).
 create table if not exists public.tournament_runs (
   id uuid primary key default gen_random_uuid(),

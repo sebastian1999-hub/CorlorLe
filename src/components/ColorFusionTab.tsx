@@ -1,6 +1,8 @@
 
 import { Fragment, useMemo, useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { hexToRgb, rgbToHex } from '../lib/colorMath'
+import { supabase } from '../lib/supabase'
 import tapSoundSrc from '../assets/crucigama-sounds/tap.wav'
 import selectSoundSrc from '../assets/crucigama-sounds/select.wav'
 import paintSoundSrc from '../assets/crucigama-sounds/paint.wav'
@@ -10,6 +12,7 @@ import completeSoundSrc from '../assets/crucigama-sounds/complete.wav'
 
 type ColorFusionTabProps = {
   dateKey: string
+  session: Session
   showGame: boolean
   onShowGame: () => void
 }
@@ -30,7 +33,10 @@ type CrucigamaIntroTab = 'explanation' | 'normal' | 'extreme'
 type CrucigamaMode = 'normal' | 'extreme'
 
 type CrucigamaAttempt = {
+  userId: string
+  username: string
   dateKey: string
+  mode: CrucigamaMode
   seconds: number
   completedAt: string
 }
@@ -97,40 +103,12 @@ const SOUND_SOURCES = {
 } as const
 
 type SoundName = keyof typeof SOUND_SOURCES
-const CRUCIGAMA_NORMAL_STORAGE_KEY = 'crucigama_attempts_normal_v1'
-const CRUCIGAMA_EXTREME_STORAGE_KEY = 'crucigama_attempts_extreme_v1'
 
 const formatSeconds = (value: number): string => {
   const total = Math.max(0, Math.round(value))
   const minutes = Math.floor(total / 60)
   const seconds = total % 60
   return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
-
-const loadCrucigamaAttempts = (storageKey: string): CrucigamaAttempt[] => {
-  try {
-    const raw = localStorage.getItem(storageKey)
-    if (!raw) {
-      return []
-    }
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-    return parsed
-      .map((entry) => ({
-        dateKey: String(entry?.dateKey || ''),
-        seconds: Number(entry?.seconds || 0),
-        completedAt: String(entry?.completedAt || ''),
-      }))
-      .filter((entry) => /^\d{4}-\d{2}-\d{2}$/.test(entry.dateKey) && Number.isFinite(entry.seconds) && entry.seconds > 0)
-  } catch {
-    return []
-  }
-}
-
-const saveCrucigamaAttempts = (storageKey: string, attempts: CrucigamaAttempt[]): void => {
-  localStorage.setItem(storageKey, JSON.stringify(attempts))
 }
 
 const hashDate = (value: string): number => {
@@ -257,7 +235,7 @@ const buildDailyPuzzle = (dateKey: string, paletteHex: string[]): FusionPuzzle =
 }
 
 
-export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTabProps) {
+export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: ColorFusionTabProps) {
   const [activeTab, setActiveTab] = useState<CrucigamaTabView>('game')
   const [introTab, setIntroTab] = useState<CrucigamaIntroTab>('explanation')
   const [challengeMode, setChallengeMode] = useState<CrucigamaMode>('normal')
@@ -291,11 +269,95 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
   const [lastCompletedSeconds, setLastCompletedSeconds] = useState<number | null>(null)
   const [leaderboardAttempts, setLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
   const [extremeLeaderboardAttempts, setExtremeLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
+  const [hasCompletedTodayNormal, setHasCompletedTodayNormal] = useState(false)
+  const [hasCompletedTodayExtreme, setHasCompletedTodayExtreme] = useState(false)
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
   const soundPlayersRef = useRef<Partial<Record<SoundName, HTMLAudioElement>>>({})
   const previousCorrectRef = useRef<Set<string>>(new Set())
   const previousCompleteRef = useRef(false)
   const startedAtRef = useRef<number | null>(null)
   const completionHandledRef = useRef(false)
+
+  const refreshCrucigamaLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true)
+    setLeaderboardError(null)
+
+    try {
+      const [{ data: ownData, error: ownError }, { data: allData, error: allError }] = await Promise.all([
+        supabase
+          .from('crucigama_attempts')
+          .select('mode')
+          .eq('user_id', session.user.id)
+          .eq('date', dateKey),
+        supabase
+          .from('crucigama_attempts')
+          .select('user_id,date,mode,seconds,created_at')
+          .eq('date', dateKey),
+      ])
+
+      if (ownError || allError) {
+        const message = (ownError || allError)?.message?.toLowerCase() ?? ''
+        if (message.includes('crucigama_attempts')) {
+          setLeaderboardError('Falta aplicar la tabla de CruciGama en Supabase.')
+        } else {
+          setLeaderboardError((ownError || allError)?.message ?? 'No se pudo cargar la tabla de CruciGama.')
+        }
+        setLeaderboardAttempts([])
+        setExtremeLeaderboardAttempts([])
+        setHasCompletedTodayNormal(false)
+        setHasCompletedTodayExtreme(false)
+        return
+      }
+
+      const ownModes = new Set((ownData ?? []).map((entry) => entry.mode))
+      setHasCompletedTodayNormal(ownModes.has('normal'))
+      setHasCompletedTodayExtreme(ownModes.has('extreme'))
+
+      const allAttempts = (allData ?? []).filter(
+        (attempt) => Number.isFinite(attempt.seconds) && attempt.seconds > 0 && (attempt.mode === 'normal' || attempt.mode === 'extreme'),
+      )
+
+      const userIds = [...new Set(allAttempts.map((attempt) => attempt.user_id))]
+      let usernameById: Record<string, string> = {}
+
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id,username')
+          .in('id', userIds)
+
+        usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+          acc[profile.id] = profile.username
+          return acc
+        }, {})
+      }
+
+      const formatAttempt = (attempt: { user_id: string; date: string; mode: string; seconds: number; created_at: string }) => ({
+        userId: attempt.user_id,
+        username: usernameById[attempt.user_id] ?? `player-${attempt.user_id.slice(0, 6)}`,
+        dateKey: attempt.date,
+        mode: attempt.mode as CrucigamaMode,
+        seconds: attempt.seconds,
+        completedAt: attempt.created_at,
+      })
+
+      const normal = allAttempts
+        .filter((attempt) => attempt.mode === 'normal')
+        .map(formatAttempt)
+        .sort((a, b) => a.seconds - b.seconds)
+
+      const extreme = allAttempts
+        .filter((attempt) => attempt.mode === 'extreme')
+        .map(formatAttempt)
+        .sort((a, b) => a.seconds - b.seconds)
+
+      setLeaderboardAttempts(normal)
+      setExtremeLeaderboardAttempts(extreme)
+    } finally {
+      setLeaderboardLoading(false)
+    }
+  }, [dateKey, session.user.id])
 
   const playSound = useCallback((name: SoundName, volume = 0.14) => {
     const player = soundPlayersRef.current[name]
@@ -330,13 +392,26 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
       setActiveTab('game')
       setIntroTab('explanation')
       setLeaderboardMode(challengeMode)
-      setLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_NORMAL_STORAGE_KEY))
-      setExtremeLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_EXTREME_STORAGE_KEY))
       return
     }
-    setLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_NORMAL_STORAGE_KEY))
-    setExtremeLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_EXTREME_STORAGE_KEY))
-  }, [showGame])
+    void refreshCrucigamaLeaderboard()
+  }, [showGame, challengeMode, refreshCrucigamaLeaderboard])
+
+  useEffect(() => {
+    void refreshCrucigamaLeaderboard()
+  }, [refreshCrucigamaLeaderboard])
+
+  useEffect(() => {
+    if (!showGame) {
+      return
+    }
+
+    const blocked = challengeMode === 'extreme' ? hasCompletedTodayExtreme : hasCompletedTodayNormal
+    if (blocked) {
+      setLeaderboardMode(challengeMode)
+      setActiveTab('leaderboard')
+    }
+  }, [showGame, challengeMode, hasCompletedTodayNormal, hasCompletedTodayExtreme])
 
   useEffect(() => {
     if (!showGame) {
@@ -379,31 +454,50 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
     setElapsedSeconds(runSeconds)
     setLastCompletedSeconds(runSeconds)
 
-    const storageKey = challengeMode === 'extreme' ? CRUCIGAMA_EXTREME_STORAGE_KEY : CRUCIGAMA_NORMAL_STORAGE_KEY
-    const existing = loadCrucigamaAttempts(storageKey)
-    const next = [...existing]
-    const sameDayIndex = next.findIndex((attempt) => attempt.dateKey === dateKey)
-    const entry: CrucigamaAttempt = {
-      dateKey,
-      seconds: runSeconds,
-      completedAt: new Date().toISOString(),
-    }
+    const saveAttempt = async () => {
+      const { data: existingRow, error: readError } = await supabase
+        .from('crucigama_attempts')
+        .select('id,seconds')
+        .eq('user_id', session.user.id)
+        .eq('date', dateKey)
+        .eq('mode', challengeMode)
+        .maybeSingle()
 
-    if (sameDayIndex >= 0) {
-      if (runSeconds < next[sameDayIndex].seconds) {
-        next[sameDayIndex] = entry
+      if (readError) {
+        setLeaderboardError(readError.message)
+        return
       }
-    } else {
-      next.push(entry)
+
+      if (!existingRow) {
+        const { error: insertError } = await supabase
+          .from('crucigama_attempts')
+          .insert({
+            user_id: session.user.id,
+            date: dateKey,
+            mode: challengeMode,
+            seconds: runSeconds,
+          })
+
+        if (insertError) {
+          setLeaderboardError(insertError.message)
+          return
+        }
+      } else if (runSeconds < existingRow.seconds) {
+        const { error: updateError } = await supabase
+          .from('crucigama_attempts')
+          .update({ seconds: runSeconds })
+          .eq('id', existingRow.id)
+
+        if (updateError) {
+          setLeaderboardError(updateError.message)
+          return
+        }
+      }
+
+      await refreshCrucigamaLeaderboard()
     }
 
-    next.sort((a, b) => a.seconds - b.seconds)
-    saveCrucigamaAttempts(storageKey, next)
-    if (challengeMode === 'extreme') {
-      setExtremeLeaderboardAttempts(next)
-    } else {
-      setLeaderboardAttempts(next)
-    }
+    void saveAttempt()
 
     const timeoutId = window.setTimeout(() => {
       setLeaderboardMode(challengeMode)
@@ -411,7 +505,7 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
     }, 1300)
 
     return () => window.clearTimeout(timeoutId)
-  }, [isComplete, dateKey, challengeMode])
+  }, [isComplete, dateKey, challengeMode, refreshCrucigamaLeaderboard, session.user.id])
 
   // Animación smooth de relleno
   useEffect(() => {
@@ -610,31 +704,45 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
           {introTab === 'normal' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto normal</h3>
-              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tus mejores tiempos guardados en este dispositivo.</p>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy con todos los jugadores.</p>
               <button
                 type="button"
                 onClick={() => {
+                  if (hasCompletedTodayNormal) {
+                    return
+                  }
                   setChallengeMode('normal')
                   setLeaderboardMode('normal')
                   onShowGame()
                 }}
+                disabled={hasCompletedTodayNormal || leaderboardLoading}
                 className="mt-4 rounded-xl border border-[#8d6b46] bg-gradient-to-b from-[#f8cb7f] via-[#f2a95c] to-[#ea8f45] px-5 py-2 text-sm font-black text-[#4b2f19] shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_10px_14px_rgba(97,62,30,0.2)] transition hover:-translate-y-0.5"
               >
-                Jugar reto diario normal
+                {hasCompletedTodayNormal ? 'Reto normal completado hoy' : 'Jugar reto diario normal'}
               </button>
               <div className="mt-4 space-y-2">
                 {leaderboardAttempts.slice(0, 10).map((attempt, index) => (
                   <article
-                    key={`crucigama-normal-attempt-${attempt.dateKey}`}
+                    key={`crucigama-normal-attempt-${attempt.userId}`}
                     className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
                   >
-                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.dateKey}</p>
+                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.username}</p>
                     <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
                   </article>
                 ))}
-                {leaderboardAttempts.length === 0 && (
+                {leaderboardLoading && (
                   <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                    Aún no hay tiempos en reto normal.
+                    Cargando leaderboard de hoy...
+                  </p>
+                )}
+                {leaderboardError && (
+                  <p className="rounded-xl border border-[#e1b0ad] bg-[#fff1f1] px-3 py-3 text-sm font-semibold text-[#9a3f39]">
+                    {leaderboardError}
+                  </p>
+                )}
+                {!leaderboardLoading && !leaderboardError && leaderboardAttempts.length === 0 && (
+                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
+                    Aún no hay tiempos en reto normal para hoy.
                   </p>
                 )}
               </div>
@@ -642,31 +750,45 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
           ) : introTab === 'extreme' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto extremo</h3>
-              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Ranking reservado para modo extremo.</p>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy en modo extremo.</p>
               <button
                 type="button"
                 onClick={() => {
+                  if (hasCompletedTodayExtreme) {
+                    return
+                  }
                   setChallengeMode('extreme')
                   setLeaderboardMode('extreme')
                   onShowGame()
                 }}
+                disabled={hasCompletedTodayExtreme || leaderboardLoading}
                 className="mt-4 rounded-xl border border-[#70483d] bg-gradient-to-b from-[#ffb18f] via-[#f0805a] to-[#cc5a34] px-5 py-2 text-sm font-black text-[#3d1f14] shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_10px_14px_rgba(97,62,30,0.2)] transition hover:-translate-y-0.5"
               >
-                Jugar reto diario extremo
+                {hasCompletedTodayExtreme ? 'Reto extremo completado hoy' : 'Jugar reto diario extremo'}
               </button>
               <div className="mt-4 space-y-2">
                 {extremeLeaderboardAttempts.slice(0, 10).map((attempt, index) => (
                   <article
-                    key={`crucigama-extreme-attempt-${attempt.dateKey}`}
+                    key={`crucigama-extreme-attempt-${attempt.userId}`}
                     className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
                   >
-                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.dateKey}</p>
+                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.username}</p>
                     <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
                   </article>
                 ))}
-                {extremeLeaderboardAttempts.length === 0 && (
+                {leaderboardLoading && (
                   <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
-                    Aún no hay tiempos en reto extremo.
+                    Cargando leaderboard de hoy...
+                  </p>
+                )}
+                {leaderboardError && (
+                  <p className="rounded-xl border border-[#e1b0ad] bg-[#fff1f1] px-3 py-3 text-sm font-semibold text-[#9a3f39]">
+                    {leaderboardError}
+                  </p>
+                )}
+                {!leaderboardLoading && !leaderboardError && extremeLeaderboardAttempts.length === 0 && (
+                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
+                    Aún no hay tiempos en reto extremo para hoy.
                   </p>
                 )}
               </div>
@@ -778,7 +900,24 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
       ) : activeTab === 'leaderboard' ? (
         <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
           <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Leaderboard CruciGama · {leaderboardMode === 'extreme' ? 'Reto extremo' : 'Reto normal'}</h3>
-          <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tus mejores tiempos guardados en este dispositivo.</p>
+          <p className="mt-1 text-sm font-semibold text-[#6f5539]">Clasificación diaria compartida de todos los jugadores.</p>
+
+          <div className="mt-3 inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
+            <button
+              type="button"
+              onClick={() => setLeaderboardMode('normal')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${leaderboardMode === 'normal' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Normal
+            </button>
+            <button
+              type="button"
+              onClick={() => setLeaderboardMode('extreme')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${leaderboardMode === 'extreme' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Extremo
+            </button>
+          </div>
 
           <div className="mt-4 rounded-2xl border border-[#dbcdb6] bg-[#fff9ef] p-4">
             <p className="text-xs font-black uppercase tracking-wide text-[#886848]">Tiempo de hoy</p>
@@ -787,7 +926,7 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
                 ? formatSeconds(lastCompletedSeconds)
                 : (() => {
                     const sourceAttempts = leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts
-                    const todayAttempt = sourceAttempts.find((attempt) => attempt.dateKey === dateKey)
+                    const todayAttempt = sourceAttempts.find((attempt) => attempt.userId === session.user.id)
                     return todayAttempt ? formatSeconds(todayAttempt.seconds) : '--:--'
                   })()}
             </p>
@@ -796,14 +935,24 @@ export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTab
           <div className="mt-4 space-y-2">
             {(leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts).slice(0, 10).map((attempt, index) => (
               <article
-                key={`crucigama-attempt-${leaderboardMode}-${attempt.dateKey}`}
+                key={`crucigama-attempt-${leaderboardMode}-${attempt.userId}`}
                 className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
               >
-                <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.dateKey}</p>
+                <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.username}</p>
                 <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
               </article>
             ))}
-            {(leaderboardMode === 'extreme' ? extremeLeaderboardAttempts.length : leaderboardAttempts.length) === 0 && (
+            {leaderboardLoading && (
+              <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
+                Cargando leaderboard de hoy...
+              </p>
+            )}
+            {leaderboardError && (
+              <p className="rounded-xl border border-[#e1b0ad] bg-[#fff1f1] px-3 py-3 text-sm font-semibold text-[#9a3f39]">
+                {leaderboardError}
+              </p>
+            )}
+            {!leaderboardLoading && !leaderboardError && (leaderboardMode === 'extreme' ? extremeLeaderboardAttempts.length : leaderboardAttempts.length) === 0 && (
               <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
                 Aún no hay tiempos guardados. Completa una partida para registrar tu marca.
               </p>

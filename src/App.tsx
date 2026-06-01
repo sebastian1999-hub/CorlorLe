@@ -2094,7 +2094,7 @@ function App() {
 
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
           <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando CruciGama...</section>}>
-            <LazyColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
+            <LazyColorFusionTab session={session} dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
           </Suspense>
         )}
 
