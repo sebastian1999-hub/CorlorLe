@@ -11,6 +11,7 @@ import completeSoundSrc from '../assets/crucigama-sounds/complete.wav'
 type ColorFusionTabProps = {
   dateKey: string
   showGame: boolean
+  onShowGame: () => void
 }
 
 type Target =
@@ -22,6 +23,16 @@ type FusionPuzzle = {
   clues: Map<string, string>
   solvedRows: string[]
   solvedCols: string[]
+}
+
+type CrucigamaTabView = 'game' | 'leaderboard'
+type CrucigamaIntroTab = 'explanation' | 'normal' | 'extreme'
+type CrucigamaMode = 'normal' | 'extreme'
+
+type CrucigamaAttempt = {
+  dateKey: string
+  seconds: number
+  completedAt: string
 }
 
 //
@@ -53,6 +64,17 @@ const PALETTE_OPTIONS: PaletteOption[] = [
   { hex: '#B493C4', group: 'Morados' },
 ]
 
+const EXTREME_PALETTE_HEX = [
+  '#1E1E1E', '#E0E0E0', '#C00000', '#EF9A9A', '#E65100', '#FFCC80',
+  '#2E7D32', '#A5D6A7', '#0D47A1', '#90CAF9', '#5B4788', '#B493C4',
+  '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635',
+]
+
+const EXTREME_PALETTE_OPTIONS: PaletteOption[] = EXTREME_PALETTE_HEX.map((hex, index) => ({
+  hex,
+  group: index < 9 ? 'Oscuros' : 'Claros',
+}))
+
 const INTRO_PALETTE_PREVIEW = [
   '#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1', '#5B4788',
   '#E0E0E0', '#EF9A9A', '#FFCC80', '#A5D6A7', '#90CAF9', '#B493C4',
@@ -60,8 +82,6 @@ const INTRO_PALETTE_PREVIEW = [
 
 const INTRO_COLUMN_SELECTOR_COLORS = ['#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1']
 const INTRO_ROW_SELECTOR_COLORS = ['#E0E0E0', '#EF9A9A', '#FFCC80', '#A5D6A7', '#90CAF9']
-
-const PALETTE_HEX = PALETTE_OPTIONS.map((entry) => entry.hex)
 
 const CONFETTI_COLORS = [
   '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981',
@@ -77,6 +97,41 @@ const SOUND_SOURCES = {
 } as const
 
 type SoundName = keyof typeof SOUND_SOURCES
+const CRUCIGAMA_NORMAL_STORAGE_KEY = 'crucigama_attempts_normal_v1'
+const CRUCIGAMA_EXTREME_STORAGE_KEY = 'crucigama_attempts_extreme_v1'
+
+const formatSeconds = (value: number): string => {
+  const total = Math.max(0, Math.round(value))
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+const loadCrucigamaAttempts = (storageKey: string): CrucigamaAttempt[] => {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) {
+      return []
+    }
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    return parsed
+      .map((entry) => ({
+        dateKey: String(entry?.dateKey || ''),
+        seconds: Number(entry?.seconds || 0),
+        completedAt: String(entry?.completedAt || ''),
+      }))
+      .filter((entry) => /^\d{4}-\d{2}-\d{2}$/.test(entry.dateKey) && Number.isFinite(entry.seconds) && entry.seconds > 0)
+  } catch {
+    return []
+  }
+}
+
+const saveCrucigamaAttempts = (storageKey: string, attempts: CrucigamaAttempt[]): void => {
+  localStorage.setItem(storageKey, JSON.stringify(attempts))
+}
 
 const hashDate = (value: string): number => {
   let hash = 2166136261
@@ -134,12 +189,12 @@ const placeClue = (
   return true
 }
 
-const buildDailyPuzzle = (dateKey: string): FusionPuzzle => {
+const buildDailyPuzzle = (dateKey: string, paletteHex: string[]): FusionPuzzle => {
   const size = 5
   const rng = createRng(hashDate(`fusion-${dateKey}`))
 
-  const solvedRows = Array.from({ length: size }, () => pickFrom(PALETTE_HEX, rng))
-  const solvedCols = Array.from({ length: size }, () => pickFrom(PALETTE_HEX, rng))
+  const solvedRows = Array.from({ length: size }, () => pickFrom(paletteHex, rng))
+  const solvedCols = Array.from({ length: size }, () => pickFrom(paletteHex, rng))
 
   const clues = new Map<string, string>()
 
@@ -202,10 +257,22 @@ const buildDailyPuzzle = (dateKey: string): FusionPuzzle => {
 }
 
 
-export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
+export function ColorFusionTab({ dateKey, showGame, onShowGame }: ColorFusionTabProps) {
+  const [activeTab, setActiveTab] = useState<CrucigamaTabView>('game')
+  const [introTab, setIntroTab] = useState<CrucigamaIntroTab>('explanation')
+  const [challengeMode, setChallengeMode] = useState<CrucigamaMode>('normal')
+  const [leaderboardMode, setLeaderboardMode] = useState<CrucigamaMode>('normal')
   // Estado para toggle de cuadrícula
   const [showObjective, setShowObjective] = useState(false)
-  const puzzle = useMemo(() => buildDailyPuzzle(dateKey), [dateKey])
+  const activePaletteOptions = useMemo(
+    () => (challengeMode === 'extreme' ? EXTREME_PALETTE_OPTIONS : PALETTE_OPTIONS),
+    [challengeMode],
+  )
+  const puzzlePaletteHex = useMemo(
+    () => activePaletteOptions.map((entry) => entry.hex),
+    [activePaletteOptions],
+  )
+  const puzzle = useMemo(() => buildDailyPuzzle(`${dateKey}-${challengeMode}`, puzzlePaletteHex), [dateKey, challengeMode, puzzlePaletteHex])
   const [rowColors, setRowColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   const [colColors, setColColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   // Animación de relleno
@@ -220,9 +287,15 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
   const miniObjectiveRef = useRef<HTMLDivElement>(null)
   const boardFrameRef = useRef<HTMLDivElement>(null)
   const [overlayRects, setOverlayRects] = useState<{ mini: DOMRect; board: DOMRect } | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [lastCompletedSeconds, setLastCompletedSeconds] = useState<number | null>(null)
+  const [leaderboardAttempts, setLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
+  const [extremeLeaderboardAttempts, setExtremeLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
   const soundPlayersRef = useRef<Partial<Record<SoundName, HTMLAudioElement>>>({})
   const previousCorrectRef = useRef<Set<string>>(new Set())
   const previousCompleteRef = useRef(false)
+  const startedAtRef = useRef<number | null>(null)
+  const completionHandledRef = useRef(false)
 
   const playSound = useCallback((name: SoundName, volume = 0.14) => {
     const player = soundPlayersRef.current[name]
@@ -251,6 +324,94 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
     })
     soundPlayersRef.current = players
   }, [])
+
+  useEffect(() => {
+    if (!showGame) {
+      setActiveTab('game')
+      setIntroTab('explanation')
+      setLeaderboardMode(challengeMode)
+      setLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_NORMAL_STORAGE_KEY))
+      setExtremeLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_EXTREME_STORAGE_KEY))
+      return
+    }
+    setLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_NORMAL_STORAGE_KEY))
+    setExtremeLeaderboardAttempts(loadCrucigamaAttempts(CRUCIGAMA_EXTREME_STORAGE_KEY))
+  }, [showGame])
+
+  useEffect(() => {
+    if (!showGame) {
+      setActiveTab('game')
+      startedAtRef.current = null
+      setElapsedSeconds(0)
+      completionHandledRef.current = false
+      return
+    }
+
+    if (activeTab !== 'game' || isComplete) {
+      return
+    }
+
+    if (!startedAtRef.current) {
+      startedAtRef.current = Date.now()
+    }
+
+    const update = () => {
+      if (!startedAtRef.current) {
+        return
+      }
+      setElapsedSeconds((Date.now() - startedAtRef.current) / 1000)
+    }
+
+    update()
+    const intervalId = window.setInterval(update, 250)
+    return () => window.clearInterval(intervalId)
+  }, [showGame, activeTab, isComplete])
+
+  useEffect(() => {
+    if (!isComplete || completionHandledRef.current) {
+      return
+    }
+
+    completionHandledRef.current = true
+    const endMs = Date.now()
+    const startMs = startedAtRef.current ?? endMs
+    const runSeconds = Math.max(1, (endMs - startMs) / 1000)
+    setElapsedSeconds(runSeconds)
+    setLastCompletedSeconds(runSeconds)
+
+    const storageKey = challengeMode === 'extreme' ? CRUCIGAMA_EXTREME_STORAGE_KEY : CRUCIGAMA_NORMAL_STORAGE_KEY
+    const existing = loadCrucigamaAttempts(storageKey)
+    const next = [...existing]
+    const sameDayIndex = next.findIndex((attempt) => attempt.dateKey === dateKey)
+    const entry: CrucigamaAttempt = {
+      dateKey,
+      seconds: runSeconds,
+      completedAt: new Date().toISOString(),
+    }
+
+    if (sameDayIndex >= 0) {
+      if (runSeconds < next[sameDayIndex].seconds) {
+        next[sameDayIndex] = entry
+      }
+    } else {
+      next.push(entry)
+    }
+
+    next.sort((a, b) => a.seconds - b.seconds)
+    saveCrucigamaAttempts(storageKey, next)
+    if (challengeMode === 'extreme') {
+      setExtremeLeaderboardAttempts(next)
+    } else {
+      setLeaderboardAttempts(next)
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLeaderboardMode(challengeMode)
+      setActiveTab('leaderboard')
+    }, 1300)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [isComplete, dateKey, challengeMode])
 
   // Animación smooth de relleno
   useEffect(() => {
@@ -381,8 +542,34 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
 
   return (
     <section className="relative overflow-visible rounded-[2rem] border border-[#f6f6f5] bg-gradient-to-br from-[#f7f3ea] via-[#f2ecdf] to-[#ede5d7] p-4 shadow-[0_20px_40px_rgba(92,75,49,0.14)] sm:p-6">
+      {showGame && (
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('game')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${activeTab === 'game' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Juego
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('leaderboard')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${activeTab === 'leaderboard' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Leaderboard
+            </button>
+          </div>
+          {activeTab === 'game' && (
+            <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
+              Tiempo: {formatSeconds(elapsedSeconds)}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Mensaje de completado con explosión de colores */}
-      {isComplete && (
+      {showGame && activeTab === 'game' && isComplete && (
         <div ref={confettiRef} className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
           <div className="relative">
             <span className="block text-3xl sm:text-5xl font-extrabold text-white drop-shadow-lg px-8 py-6 rounded-3xl animate-pop bg-gradient-to-br from-pink-400 via-yellow-300 to-green-400 border-4 border-white shadow-2xl">
@@ -396,6 +583,96 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
       )}
       {!showGame ? (
         <div className="mx-auto flex max-w-[920px] flex-col items-center gap-5 rounded-[1.8rem] border border-[#ddceb5] bg-gradient-to-b from-[#f8f2e7] via-[#f3ecde] to-[#eee3d2] p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_24px_35px_rgba(94,72,38,0.24)] sm:gap-6 sm:p-6 lg:p-7">
+          <div className="inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
+            <button
+              type="button"
+              onClick={() => setIntroTab('explanation')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'explanation' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Explicación
+            </button>
+            <button
+              type="button"
+              onClick={() => setIntroTab('normal')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'normal' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Tabla reto normal
+            </button>
+            <button
+              type="button"
+              onClick={() => setIntroTab('extreme')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'extreme' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Tabla reto extremo
+            </button>
+          </div>
+
+          {introTab === 'normal' ? (
+            <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
+              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto normal</h3>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tus mejores tiempos guardados en este dispositivo.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setChallengeMode('normal')
+                  setLeaderboardMode('normal')
+                  onShowGame()
+                }}
+                className="mt-4 rounded-xl border border-[#8d6b46] bg-gradient-to-b from-[#f8cb7f] via-[#f2a95c] to-[#ea8f45] px-5 py-2 text-sm font-black text-[#4b2f19] shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_10px_14px_rgba(97,62,30,0.2)] transition hover:-translate-y-0.5"
+              >
+                Jugar reto diario normal
+              </button>
+              <div className="mt-4 space-y-2">
+                {leaderboardAttempts.slice(0, 10).map((attempt, index) => (
+                  <article
+                    key={`crucigama-normal-attempt-${attempt.dateKey}`}
+                    className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
+                  >
+                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.dateKey}</p>
+                    <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
+                  </article>
+                ))}
+                {leaderboardAttempts.length === 0 && (
+                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
+                    Aún no hay tiempos en reto normal.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : introTab === 'extreme' ? (
+            <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
+              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto extremo</h3>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Ranking reservado para modo extremo.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setChallengeMode('extreme')
+                  setLeaderboardMode('extreme')
+                  onShowGame()
+                }}
+                className="mt-4 rounded-xl border border-[#70483d] bg-gradient-to-b from-[#ffb18f] via-[#f0805a] to-[#cc5a34] px-5 py-2 text-sm font-black text-[#3d1f14] shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_10px_14px_rgba(97,62,30,0.2)] transition hover:-translate-y-0.5"
+              >
+                Jugar reto diario extremo
+              </button>
+              <div className="mt-4 space-y-2">
+                {extremeLeaderboardAttempts.slice(0, 10).map((attempt, index) => (
+                  <article
+                    key={`crucigama-extreme-attempt-${attempt.dateKey}`}
+                    className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
+                  >
+                    <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.dateKey}</p>
+                    <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
+                  </article>
+                ))}
+                {extremeLeaderboardAttempts.length === 0 && (
+                  <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
+                    Aún no hay tiempos en reto extremo.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+          <>
           <h2 className="text-xl font-black sm:text-3xl" aria-label="CruciGama">
             <span className="inline-flex items-center gap-[1px]">
               {CRUCIGAMA_LABEL.split('').map((char, index) => (
@@ -494,6 +771,43 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
                 <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">3. Cuando una casilla coincide con la pista, se marca en verde.</li>
               </ol>
             </div>
+            </div>
+          </>
+          )}
+        </div>
+      ) : activeTab === 'leaderboard' ? (
+        <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
+          <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Leaderboard CruciGama · {leaderboardMode === 'extreme' ? 'Reto extremo' : 'Reto normal'}</h3>
+          <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tus mejores tiempos guardados en este dispositivo.</p>
+
+          <div className="mt-4 rounded-2xl border border-[#dbcdb6] bg-[#fff9ef] p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-[#886848]">Tiempo de hoy</p>
+            <p className="mt-2 text-3xl font-black text-[#4f3a24]">
+              {lastCompletedSeconds != null
+                ? formatSeconds(lastCompletedSeconds)
+                : (() => {
+                    const sourceAttempts = leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts
+                    const todayAttempt = sourceAttempts.find((attempt) => attempt.dateKey === dateKey)
+                    return todayAttempt ? formatSeconds(todayAttempt.seconds) : '--:--'
+                  })()}
+            </p>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {(leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts).slice(0, 10).map((attempt, index) => (
+              <article
+                key={`crucigama-attempt-${leaderboardMode}-${attempt.dateKey}`}
+                className="flex items-center justify-between rounded-xl border border-[#d9c9af] bg-[#f8f1e3] px-3 py-2"
+              >
+                <p className="text-sm font-black text-[#5d4329]">#{index + 1} · {attempt.dateKey}</p>
+                <p className="text-sm font-black text-emerald-700">{formatSeconds(attempt.seconds)}</p>
+              </article>
+            ))}
+            {(leaderboardMode === 'extreme' ? extremeLeaderboardAttempts.length : leaderboardAttempts.length) === 0 && (
+              <p className="rounded-xl border border-[#dfd2bd] bg-[#f8f1e3] px-3 py-3 text-sm font-semibold text-[#6f5539]">
+                Aún no hay tiempos guardados. Completa una partida para registrar tu marca.
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -579,7 +893,7 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
           </div>
         </>
       )}
-      {showGame && overlayRects && (
+      {showGame && activeTab === 'game' && overlayRects && (
         <button
           type="button"
           onClick={() => {
@@ -725,13 +1039,13 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
         }
       `}</style>
 
-      {showGame && (
+      {showGame && activeTab === 'game' && (
         <div
         className="relative z-[100] mx-auto mt-6 w-full max-w-[640px] rounded-[1.75rem] border border-[#d8cab1] bg-gradient-to-br from-[#f5efdf] to-[#eadfc9] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_20px_30px_rgba(86,69,37,0.28)] md:absolute md:right-0 md:top-8 md:mt-0 md:w-max md:max-w-none md:p-4"
         aria-hidden={false}
       >
         <div className="grid grid-cols-6 gap-2.5 md:hidden">
-          {PALETTE_OPTIONS.map((option) => (
+          {activePaletteOptions.map((option) => (
             <button
               key={`mobile-${option.group}-${option.hex}`}
               type="button"
@@ -750,9 +1064,9 @@ export function ColorFusionTab({ dateKey, showGame }: ColorFusionTabProps) {
         </div>
 
         <div className="hidden space-y-2.5 md:block">
-          {['Neutros', 'Rojos', 'Naranjas', 'Verdes', 'Azules', 'Morados'].map((group) => (
+          {[...new Set(activePaletteOptions.map((option) => option.group))].map((group) => (
             <div key={`palette-row-${group}`} className="flex flex-wrap gap-2.5">
-              {PALETTE_OPTIONS
+              {activePaletteOptions
                 .filter((option) => option.group === group)
                 .map((option) => (
                   <button

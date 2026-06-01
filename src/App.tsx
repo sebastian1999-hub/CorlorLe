@@ -1829,34 +1829,34 @@ function App() {
               </div>
 
               <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[290px]">
-                <button
-                  type="button"
-                  onClick={handlePrimaryAction}
-                  disabled={activeGameTab === 'dailyColor'
-                    ? (
-                        hasPlayedOnViewDate ||
-                        loadingData ||
-                        isBeforeFirstPlayableViewDate
-                      )
-                    : activeGameTab === 'crossword'
+                {activeGameTab !== 'animatedCharacter' && (
+                  <button
+                    type="button"
+                    onClick={handlePrimaryAction}
+                    disabled={activeGameTab === 'dailyColor'
+                      ? (
+                          hasPlayedOnViewDate ||
+                          loadingData ||
+                          isBeforeFirstPlayableViewDate
+                        )
+                      : activeGameTab === 'crossword'
                         ? hasCompletedCrosswordToday
                         : false}
-                  className="rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {activeGameTab === 'crossword'
-                    ? hasCompletedCrosswordToday
-                      ? 'Crucigrama completado'
-                      : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
-                      : activeGameTab === 'animatedCharacter'
-                        ? (crucigamaView === 'play' ? 'CruciGama abierto' : 'Ir al CruciGama')
-                    : !isColorGameActive
-                      ? 'Disponible pronto'
-                      : isBeforeFirstPlayableViewDate
-                        ? 'No disponible'
-                        : hasPlayedOnViewDate
-                          ? 'Reto ya completado'
-                          : 'Jugar reto diario'}
-                </button>
+                    className="rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {activeGameTab === 'crossword'
+                      ? hasCompletedCrosswordToday
+                        ? 'Crucigrama completado'
+                        : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
+                      : !isColorGameActive
+                        ? 'Disponible pronto'
+                        : isBeforeFirstPlayableViewDate
+                          ? 'No disponible'
+                          : hasPlayedOnViewDate
+                            ? 'Reto ya completado'
+                            : 'Jugar reto diario'}
+                  </button>
+                )}
 
                 {WARMUP_ENABLED && canUseWarmupFeature && isColorGameActive && (
                   <button
@@ -2021,7 +2021,7 @@ function App() {
         )}
 
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
-          <ColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} />
+          <ColorFusionTab dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
         )}
 
         {isPreviewStage && difficulty && (

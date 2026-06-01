@@ -29,7 +29,57 @@ type DictionaryRow = {
 
 const MAX_CHECKS = 2
 // Increment this value when you want to regenerate the global daily crossword for everyone.
-const CROSSWORD_DAILY_REVISION = '2026-06-01-r1'
+const CROSSWORD_DAILY_REVISION = '2026-06-01-r2'
+
+const normalizeToken = (value: string): string =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+
+const normalizeDictionaryClue = (value: string, normalizedWord: string): string | null => {
+  let clue = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!clue) {
+    return null
+  }
+
+  // Remove common prefixed numbering or punctuation noise.
+  clue = clue.replace(/^[\d\s.)\-–—]+/, '')
+
+  // Remove common leading RAE grammatical abbreviations (adj., m., f., tr., etc.).
+  clue = clue.replace(/^(?:(?:adj|adv|m|f|s|tr|intr|prnl|loc|conj|interj|prep|pron|art|num|sust)\.\s*)+/i, '')
+
+  clue = clue
+    .replace(/[;:]+/g, ', ')
+    .replace(/\s+,/g, ',')
+    .replace(/\s+([,.!?])/g, '$1')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[,.;:\-–—\s]+|[,.;:\-–—\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!clue || clue.length < 12 || clue.length > 180) {
+    return null
+  }
+
+  const words = clue.split(' ').filter(Boolean)
+  if (words.length < 2) {
+    return null
+  }
+
+  const letterCount = (clue.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g) ?? []).length
+  if (letterCount / clue.length < 0.6) {
+    return null
+  }
+
+  const normalizedClue = normalizeToken(clue)
+  if (!normalizedClue || normalizedClue.includes(normalizedWord)) {
+    return null
+  }
+
+  return clue.charAt(0).toUpperCase() + clue.slice(1)
+}
 
 const formatSeconds = (value: number): string => {
   const total = Math.max(0, Math.round(value))
@@ -45,12 +95,18 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     const dedupByWord = new Map<string, DictionaryRow>()
     for (const row of remoteDictionary) {
       const key = String(row.word || '').trim().toUpperCase()
-      if (!key || dedupByWord.has(key)) {
+      if (!/^[A-Z]{3,11}$/.test(key) || dedupByWord.has(key)) {
         continue
       }
+
+      const normalizedClue = normalizeDictionaryClue(String(row.clue || ''), key)
+      if (!normalizedClue) {
+        continue
+      }
+
       dedupByWord.set(key, {
         word: key,
-        clue: String(row.clue || '').trim(),
+        clue: normalizedClue,
       })
     }
 
