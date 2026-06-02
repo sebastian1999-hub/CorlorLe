@@ -28,8 +28,12 @@ type DictionaryRow = {
   clue: string
 }
 
+type CrosswordPuzzle = ReturnType<typeof buildDailyCrossword>
+
 const MAX_CHECKS = 2
 const CROSSWORD_DAILY_REVISION = '2026-06-02-local-json-r1'
+const dictionaryCache: { value: DictionaryRow[] | null } = { value: null }
+const puzzleCache = new Map<string, CrosswordPuzzle>()
 
 const normalizeToken = (value: string): string =>
   String(value || '')
@@ -81,6 +85,54 @@ const normalizeDictionaryClue = (value: string, normalizedWord: string): string 
   return clue.charAt(0).toUpperCase() + clue.slice(1)
 }
 
+const getDeterministicLocalDictionary = (): DictionaryRow[] => {
+  if (dictionaryCache.value) {
+    return dictionaryCache.value
+  }
+
+  const dedupByWord = new Map<string, DictionaryRow>()
+  for (const row of LOCAL_CROSSWORD_DICTIONARY) {
+    const key = String(row.word || '').trim().toUpperCase()
+    if (!/^[A-Z]{3,11}$/.test(key) || dedupByWord.has(key)) {
+      continue
+    }
+
+    const normalizedClue = normalizeDictionaryClue(String(row.clue || ''), key)
+    if (!normalizedClue) {
+      continue
+    }
+
+    dedupByWord.set(key, {
+      word: key,
+      clue: normalizedClue,
+    })
+  }
+
+  dictionaryCache.value = [...dedupByWord.values()].sort((a, b) => a.word.localeCompare(b.word))
+  return dictionaryCache.value
+}
+
+const getDailyCrosswordPuzzle = (dateKey: string, deterministicLocalDictionary: DictionaryRow[]): CrosswordPuzzle => {
+  const versionedDateKey = `${dateKey}-global-${CROSSWORD_DAILY_REVISION}`
+  const cacheKey =
+    deterministicLocalDictionary.length >= 24
+      ? `local:${versionedDateKey}`
+      : `fallback:${dateKey}`
+
+  const cachedPuzzle = puzzleCache.get(cacheKey)
+  if (cachedPuzzle) {
+    return cachedPuzzle
+  }
+
+  const nextPuzzle =
+    deterministicLocalDictionary.length >= 24
+      ? buildDailyCrosswordFromWordList(versionedDateKey, deterministicLocalDictionary)
+      : buildDailyCrossword(dateKey)
+
+  puzzleCache.set(cacheKey, nextPuzzle)
+  return nextPuzzle
+}
+
 const formatSeconds = (value: number): string => {
   const total = Math.max(0, Math.round(value))
   const minutes = Math.floor(total / 60)
@@ -89,35 +141,12 @@ const formatSeconds = (value: number): string => {
 }
 
 export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: CrosswordTabProps) {
-  const deterministicLocalDictionary = useMemo(() => {
-    const dedupByWord = new Map<string, DictionaryRow>()
-    for (const row of LOCAL_CROSSWORD_DICTIONARY) {
-      const key = String(row.word || '').trim().toUpperCase()
-      if (!/^[A-Z]{3,11}$/.test(key) || dedupByWord.has(key)) {
-        continue
-      }
+  const deterministicLocalDictionary = useMemo(() => getDeterministicLocalDictionary(), [])
 
-      const normalizedClue = normalizeDictionaryClue(String(row.clue || ''), key)
-      if (!normalizedClue) {
-        continue
-      }
-
-      dedupByWord.set(key, {
-        word: key,
-        clue: normalizedClue,
-      })
-    }
-
-    return [...dedupByWord.values()].sort((a, b) => a.word.localeCompare(b.word))
-  }, [])
-
-  const puzzle = useMemo(() => {
-    if (deterministicLocalDictionary.length >= 24) {
-      const versionedDateKey = `${dateKey}-global-${CROSSWORD_DAILY_REVISION}`
-      return buildDailyCrosswordFromWordList(versionedDateKey, deterministicLocalDictionary)
-    }
-    return buildDailyCrossword(dateKey)
-  }, [dateKey, deterministicLocalDictionary])
+  const puzzle = useMemo(
+    () => getDailyCrosswordPuzzle(dateKey, deterministicLocalDictionary),
+    [dateKey, deterministicLocalDictionary],
+  )
   const letterPool = useMemo(() => {
     const letters = new Set<string>()
     for (const row of puzzle.grid) {

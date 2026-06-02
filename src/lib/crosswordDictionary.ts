@@ -926,6 +926,254 @@ export const LOCAL_CROSSWORD_DICTIONARY: LocalDictionaryEntry[] = [
     "clue": "Sesion de juego"
   },
   {
+    "word": "AXIOMA",
+    "clue": "Proposicion aceptada sin demostracion"
+  },
+  {
+    "word": "TEOREMA",
+    "clue": "Proposicion demostrable en matematicas"
+  },
+  {
+    "word": "COROLARIO",
+    "clue": "Conclusion que se deduce de un teorema"
+  },
+  {
+    "word": "POSTULADO",
+    "clue": "Principio que se admite como base"
+  },
+  {
+    "word": "INFERENCIA",
+    "clue": "Conclusion obtenida a partir de premisas"
+  },
+  {
+    "word": "CONJETURA",
+    "clue": "Hipotesis basada en indicios"
+  },
+  {
+    "word": "PARADOJA",
+    "clue": "Idea que parece contradictoria"
+  },
+  {
+    "word": "FALACIA",
+    "clue": "Razonamiento incorrecto con apariencia valida"
+  },
+  {
+    "word": "DIALECTICA",
+    "clue": "Metodo de razonamiento por oposicion de ideas"
+  },
+  {
+    "word": "SILOGISMO",
+    "clue": "Razonamiento formado por dos premisas y conclusion"
+  },
+  {
+    "word": "SEMANTICA",
+    "clue": "Parte de la linguistica que estudia el significado"
+  },
+  {
+    "word": "SINTAXIS",
+    "clue": "Reglas para combinar palabras en oraciones"
+  },
+  {
+    "word": "MORFOLOGIA",
+    "clue": "Estudio de la forma de las palabras"
+  },
+  {
+    "word": "PRAGMATICA",
+    "clue": "Estudio del uso del lenguaje en contexto"
+  },
+  {
+    "word": "METAFORA",
+    "clue": "Figura literaria que compara sin usar como"
+  },
+  {
+    "word": "ANAFORA",
+    "clue": "Repeticion inicial de una palabra en varios versos"
+  },
+  {
+    "word": "HIPERBOLE",
+    "clue": "Exageracion expresiva en el lenguaje"
+  },
+  {
+    "word": "OXIMORON",
+    "clue": "Union de dos terminos de significado opuesto"
+  },
+  {
+    "word": "HEURISTICA",
+    "clue": "Metodo practico para resolver problemas"
+  },
+  {
+    "word": "ALGORITMICA",
+    "clue": "Disciplina del diseno y analisis de algoritmos"
+  },
+  {
+    "word": "COMPLEJIDAD",
+    "clue": "Medida del coste de un algoritmo"
+  },
+  {
+    "word": "RECURSION",
+    "clue": "Tecnica en la que una funcion se llama a si misma"
+  },
+  {
+    "word": "PUNTERO",
+    "clue": "Variable que almacena una direccion de memoria"
+  },
+  {
+    "word": "HASHING",
+    "clue": "Tecnica para transformar datos en una clave fija"
+  },
+  {
+    "word": "LATENCIA",
+    "clue": "Tiempo de espera en una comunicacion de red"
+  },
+  {
+    "word": "THROUGHPUT",
+    "clue": "Cantidad de datos procesados por unidad de tiempo"
+  },
+  {
+    "word": "CACHE",
+    "clue": "Memoria rapida para guardar datos frecuentes"
+  },
+  {
+    "word": "PIPELINE",
+    "clue": "Secuencia automatizada de etapas de procesamiento"
+  },
+  {
+    "word": "SANDBOX",
+    "clue": "Entorno aislado para ejecutar codigo con seguridad"
+  },
+  {
+    "word": "CRIPTOGRAFIA",
+    "clue": "Tecnica para proteger informacion mediante cifrado"
+  },
+  {
+    "word": "CIFRADO",
+    "clue": "Proceso de convertir datos en texto ilegible"
+  },
+  {
+    "word": "FIRMA",
+    "clue": "Prueba criptografica de autoria e integridad"
+  },
+  {
+    "word": "TOKEN",
+    "clue": "Credencial digital de acceso temporal"
+  },
+  {
+    "word": "ENTROPIA",
+    "clue": "Magnitud fisica asociada al desorden de un sistema"
+  },
+  {
+    "word": "INERCIA",
+    "clue": "Propiedad de resistirse al cambio de movimiento"
+  },
+  {
+    "word": "ISOTOPO",
+    "clue": "Atomo del mismo elemento con distinta masa"
+  },
+  {
+    "word": "MOLECULA",
+    "clue": "Conjunto de atomos enlazados"
+  },
+  {
+    "word": "ELECTRON",
+    "clue": "Particula subatomica con carga negativa"
+  },
+  {
+    "word": "PROTON",
+    "clue": "Particula subatomica con carga positiva"
+  },
+  {
+    "word": "NEUTRON",
+    "clue": "Particula subatomica sin carga electrica"
+  },
+  {
+    "word": "BIOMASA",
+    "clue": "Materia organica aprovechable como energia"
+  },
+  {
+    "word": "ECOSISTEMA",
+    "clue": "Conjunto de seres vivos y su entorno"
+  },
+  {
+    "word": "TECTONICA",
+    "clue": "Estudio del movimiento de las placas terrestres"
+  },
+  {
+    "word": "OROGENIA",
+    "clue": "Proceso de formacion de montanas"
+  },
+  {
+    "word": "PALEOLITICO",
+    "clue": "Periodo prehistorico de piedra tallada"
+  },
+  {
+    "word": "NEOLITICO",
+    "clue": "Periodo prehistorico de agricultura y sedentarismo"
+  },
+  {
+    "word": "RENACIMIENTO",
+    "clue": "Movimiento cultural europeo entre Edad Media y Moderna"
+  },
+  {
+    "word": "ILUSTRACION",
+    "clue": "Corriente intelectual del siglo XVIII"
+  },
+  {
+    "word": "VANGUARDIA",
+    "clue": "Movimiento artistico innovador"
+  },
+  {
+    "word": "PARADIGMA",
+    "clue": "Modelo o marco de referencia"
+  },
+  {
+    "word": "ONTOLOGIA",
+    "clue": "Rama filosofica que estudia el ser"
+  },
+  {
+    "word": "EPISTEME",
+    "clue": "Conocimiento fundamentado en teoria filosofica"
+  },
+  {
+    "word": "DETERMINISMO",
+    "clue": "Doctrina que sostiene que todo efecto tiene causa"
+  },
+  {
+    "word": "EXISTENCIAL",
+    "clue": "Relacionado con la existencia humana"
+  },
+  {
+    "word": "ESTETICA",
+    "clue": "Rama filosofica que estudia la belleza"
+  },
+  {
+    "word": "ETIMOLOGIA",
+    "clue": "Estudio del origen de las palabras"
+  },
+  {
+    "word": "LEXICO",
+    "clue": "Conjunto de palabras de una lengua"
+  },
+  {
+    "word": "DIDACTICA",
+    "clue": "Disciplina sobre tecnicas de ensenanza"
+  },
+  {
+    "word": "PEDAGOGIA",
+    "clue": "Ciencia de la educacion"
+  },
+  {
+    "word": "NEUROCIA",
+    "clue": "Forma abreviada popular de neurociencia"
+  },
+  {
+    "word": "COGNITIVO",
+    "clue": "Relacionado con los procesos mentales"
+  },
+  {
+    "word": "ABSTRACCION",
+    "clue": "Proceso de aislar lo esencial de algo"
+  },
+  {
     "word": "DICCIONARIO",
     "clue": "Conjunto organizado de palabras y definiciones"
   }

@@ -1331,6 +1331,15 @@ function App() {
   }, [resolveAuthorizedSession])
 
   useEffect(() => {
+    // Preload the crossword chunk in background so tab navigation feels instant.
+    const timeoutId = window.setTimeout(() => {
+      void import('./components/CrosswordTab')
+    }, 1200)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [])
+
+  useEffect(() => {
     if (!session) {
       return
     }
