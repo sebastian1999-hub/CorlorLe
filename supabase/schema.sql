@@ -339,3 +339,38 @@ drop policy if exists "Crossword dictionary is publicly readable" on public.cros
 create policy "Crossword dictionary is publicly readable"
 on public.crossword_dictionary for select
 using (true);
+
+-- -----------------------------------------------------------------------------
+-- Hardened anti-scraping policy overrides (apply last)
+-- Restrict broad read access to authenticated users only.
+-- -----------------------------------------------------------------------------
+
+drop policy if exists "Profiles are publicly readable" on public.profiles;
+create policy "Profiles are authenticated-readable"
+on public.profiles for select
+to authenticated
+using (true);
+
+drop policy if exists "Attempts are publicly readable" on public.attempts;
+create policy "Attempts are authenticated-readable"
+on public.attempts for select
+to authenticated
+using (true);
+
+drop policy if exists "Crossword attempts are publicly readable" on public.crossword_attempts;
+create policy "Crossword attempts are authenticated-readable"
+on public.crossword_attempts for select
+to authenticated
+using (true);
+
+drop policy if exists "CruciGama attempts are publicly readable" on public.crucigama_attempts;
+create policy "CruciGama attempts are authenticated-readable"
+on public.crucigama_attempts for select
+to authenticated
+using (true);
+
+drop policy if exists "Crossword dictionary is publicly readable" on public.crossword_dictionary;
+create policy "Crossword dictionary is authenticated-readable"
+on public.crossword_dictionary for select
+to authenticated
+using (true);

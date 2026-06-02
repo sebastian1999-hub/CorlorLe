@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { buildDailyCrossword, buildDailyCrosswordFromWordList, type CrosswordCell } from '../lib/crossword.ts'
+import { LOCAL_CROSSWORD_DICTIONARY } from '../lib/crosswordDictionary'
 import { supabase } from '../lib/supabase'
 import goldMedal from '../assets/oro.png'
 import silverMedal from '../assets/copa-de-plata.png'
@@ -28,8 +29,7 @@ type DictionaryRow = {
 }
 
 const MAX_CHECKS = 2
-// Increment this value when you want to regenerate the global daily crossword for everyone.
-const CROSSWORD_DAILY_REVISION = '2026-06-01-r2'
+const CROSSWORD_DAILY_REVISION = '2026-06-02-local-json-r1'
 
 const normalizeToken = (value: string): string =>
   String(value || '')
@@ -89,11 +89,9 @@ const formatSeconds = (value: number): string => {
 }
 
 export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: CrosswordTabProps) {
-  const [remoteDictionary, setRemoteDictionary] = useState<DictionaryRow[]>([])
-
-  const deterministicRemoteDictionary = useMemo(() => {
+  const deterministicLocalDictionary = useMemo(() => {
     const dedupByWord = new Map<string, DictionaryRow>()
-    for (const row of remoteDictionary) {
+    for (const row of LOCAL_CROSSWORD_DICTIONARY) {
       const key = String(row.word || '').trim().toUpperCase()
       if (!/^[A-Z]{3,11}$/.test(key) || dedupByWord.has(key)) {
         continue
@@ -111,46 +109,15 @@ export function CrosswordTab({ session, dateKey, showGame, onBackToPodium }: Cro
     }
 
     return [...dedupByWord.values()].sort((a, b) => a.word.localeCompare(b.word))
-  }, [remoteDictionary])
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadDictionary = async () => {
-      const { data, error } = await supabase
-        .from('crossword_dictionary')
-        .select('word,clue')
-        .eq('is_active', true)
-        .order('word', { ascending: true })
-        .limit(5000)
-
-      if (!isMounted) {
-        return
-      }
-
-      if (error) {
-        setRemoteDictionary([])
-        return
-      }
-
-      const rows = (data ?? []) as DictionaryRow[]
-      setRemoteDictionary(rows)
-    }
-
-    void loadDictionary()
-
-    return () => {
-      isMounted = false
-    }
   }, [])
 
   const puzzle = useMemo(() => {
-    if (deterministicRemoteDictionary.length >= 24) {
+    if (deterministicLocalDictionary.length >= 24) {
       const versionedDateKey = `${dateKey}-global-${CROSSWORD_DAILY_REVISION}`
-      return buildDailyCrosswordFromWordList(versionedDateKey, deterministicRemoteDictionary)
+      return buildDailyCrosswordFromWordList(versionedDateKey, deterministicLocalDictionary)
     }
     return buildDailyCrossword(dateKey)
-  }, [dateKey, deterministicRemoteDictionary])
+  }, [dateKey, deterministicLocalDictionary])
   const letterPool = useMemo(() => {
     const letters = new Set<string>()
     for (const row of puzzle.grid) {
