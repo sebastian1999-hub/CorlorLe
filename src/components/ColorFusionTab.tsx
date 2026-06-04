@@ -324,6 +324,17 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
       options: family.colors.map((hex) => ({ hex, group: family.name })),
     }
   }, [dateKey])
+  const monochromePreviewFamilies = useMemo(() => {
+    const rng = createRng(hashDate(`mono-preview-${dateKey}`))
+    const shuffled = [...MONOCHROME_FAMILIES]
+
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(rng() * (index + 1))
+      ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+    }
+
+    return shuffled.slice(0, 4)
+  }, [dateKey])
   const activePaletteOptions = useMemo(
     () => {
       if (challengeMode === 'extreme') {
@@ -768,7 +779,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }
   }, [showObjective, puzzle.size])
 
-  const renderCrucigamaRows = (attempts: CrucigamaAttempt[], emptyText: string) => {
+  const renderCrucigamaRows = (attempts: CrucigamaAttempt[]) => {
     if (leaderboardLoading) {
       return (
         <p className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-500">
@@ -786,11 +797,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }
 
     if (attempts.length === 0) {
-      return (
-        <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-500">
-          {emptyText}
-        </p>
-      )
+      return null
     }
 
     return (
@@ -893,32 +900,44 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto normal</h3>
               <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy con todos los jugadores.</p>
-              <div className="mt-4">{renderCrucigamaRows(leaderboardAttempts, 'Aún no hay tiempos en reto normal para hoy.')}</div>
+              <div className="mt-4">{renderCrucigamaRows(leaderboardAttempts)}</div>
             </div>
           ) : introTab === 'extreme' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto extremo</h3>
               <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy en modo extremo.</p>
-              <div className="mt-4">{renderCrucigamaRows(extremeLeaderboardAttempts, 'Aún no hay tiempos en reto extremo para hoy.')}</div>
+              <div className="mt-4">{renderCrucigamaRows(extremeLeaderboardAttempts)}</div>
             </div>
           ) : introTab === 'monochrome' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Gama monocromatica del dia</h3>
               <p className="mt-1 text-sm font-semibold text-[#6f5539]">
-                Usa 12 colores de una misma gama cromatica. Gama de hoy: <span className="font-black">{monochromeFamily.name}</span>.
+                Te pueden salir estas 4 gamas posibles del diario. La de hoy es <span className="font-black">{monochromeFamily.name}</span>.
               </p>
-              <div className="mt-4 grid grid-cols-6 gap-2 sm:gap-2.5">
-                {monochromeFamily.options.map((option) => (
-                  <div
-                    key={`mono-preview-${option.hex}`}
-                    className="palette-swatch h-10 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.18)] sm:h-12"
-                    style={{ backgroundColor: option.hex }}
-                    title={option.hex.toUpperCase()}
-                  />
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {monochromePreviewFamilies.map((family) => (
+                  <div key={`mono-family-${family.name}`} className="rounded-2xl border border-[#d7c8af] bg-white/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#4f3a24]">{family.name}</p>
+                      <span className="rounded-full border border-[#d7c8af] bg-[#fff9ef] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#8a673f]">
+                        12 tonos
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {family.colors.map((hex) => (
+                        <div
+                          key={`mono-family-${family.name}-${hex}`}
+                          className="h-8 rounded-xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_6px_10px_rgba(72,54,29,0.14)] sm:h-9"
+                          style={{ backgroundColor: hex }}
+                          title={hex.toUpperCase()}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
               <div className="mt-4">
-                {renderCrucigamaRows(monochromeLeaderboardAttempts, 'Aún no hay tiempos en gama monocromatica para hoy.')}
+                {renderCrucigamaRows(monochromeLeaderboardAttempts)}
               </div>
             </div>
           ) : (
@@ -1078,7 +1097,6 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
                 : leaderboardMode === 'monochrome'
                   ? monochromeLeaderboardAttempts
                   : leaderboardAttempts,
-              'Aún no hay tiempos guardados. Completa una partida para registrar tu marca.',
             )}
           </div>
         </div>
