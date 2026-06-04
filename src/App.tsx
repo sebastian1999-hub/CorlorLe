@@ -1891,7 +1891,7 @@ function App() {
   return (
     <div className="bg-animated min-h-screen px-3 py-6 text-zinc-900 sm:px-4 sm:py-8">
       <main className="mx-auto max-w-5xl space-y-6">
-        <header className="rounded-[2rem] border border-zinc-900/10 bg-white/80 p-4 shadow-xl backdrop-blur sm:p-6">
+        <header className="relative z-50 rounded-[2rem] border border-zinc-900/10 bg-white/80 p-4 shadow-xl backdrop-blur sm:p-6">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
@@ -1931,7 +1931,7 @@ function App() {
                     </button>
 
                     {activeGameTab === 'animatedCharacter' && isCrucigamaModePickerOpen && (
-                      <div className="absolute right-0 z-30 mt-2 w-full min-w-[230px] rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
+                      <div className="absolute right-0 top-full z-[80] mt-2 w-full min-w-[230px] rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
                         <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Elige modo</p>
                         <button
                           type="button"
