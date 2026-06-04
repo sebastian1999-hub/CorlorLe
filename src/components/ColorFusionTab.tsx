@@ -312,10 +312,10 @@ const buildDailyPuzzle = (dateKey: string, paletteHex: string[]): FusionPuzzle =
 export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBackToHome }: ColorFusionTabProps) {
   const [activeTab, setActiveTab] = useState<CrucigamaTabView>('game')
   const [introTab, setIntroTab] = useState<CrucigamaIntroTab>('explanation')
-  const [challengeMode, setChallengeMode] = useState<CrucigamaMode>(selectedMode)
   const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>('normal')
   // Estado para toggle de cuadrícula
   const [showObjective, setShowObjective] = useState(false)
+  const challengeMode = selectedMode
   const monochromeFamily = useMemo(() => {
     const familyIndex = hashDate(`mono-family-${dateKey}`) % MONOCHROME_FAMILIES.length
     const family = MONOCHROME_FAMILIES[familyIndex]
@@ -516,7 +516,6 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }
 
     const timeoutId = window.setTimeout(() => {
-      setChallengeMode(selectedMode)
       setActiveTab('game')
       setLeaderboardMode(selectedMode)
     }, 0)
@@ -530,6 +529,31 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
       window.clearTimeout(refreshTimeoutId)
     }
   }, [showGame, selectedMode, refreshCrucigamaLeaderboard])
+
+  useEffect(() => {
+    if (!showGame) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      // Start each run from a clean board so timer/state can't leak from previous games.
+      setRowColors(Array.from({ length: puzzle.size }, () => null))
+      setColColors(Array.from({ length: puzzle.size }, () => null))
+      setSelectedTarget(null)
+      setAnimating(null)
+      setAnimationStep(0)
+      pendingColorRef.current = null
+      setIsComplete(false)
+      setRecentlyCorrectKeys([])
+      previousCorrectRef.current = new Set()
+      previousCompleteRef.current = false
+      completionHandledRef.current = false
+      startedAtRef.current = Date.now()
+      setElapsedSeconds(0)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [showGame, dateKey, selectedMode, puzzle.size])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -594,8 +618,9 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
 
     completionHandledRef.current = true
     const endMs = Date.now()
-    const startMs = startedAtRef.current ?? endMs
-    const runSeconds = Math.max(1, (endMs - startMs) / 1000)
+    const startMs = startedAtRef.current
+    const measuredSeconds = startMs ? (endMs - startMs) / 1000 : elapsedSeconds
+    const runSeconds = Math.max(1, measuredSeconds)
     setElapsedSeconds(runSeconds)
     setLastCompletedSeconds(runSeconds)
 
@@ -650,7 +675,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }, 1300)
 
     return () => window.clearTimeout(timeoutId)
-  }, [isComplete, dateKey, challengeMode, onBackToHome, refreshCrucigamaLeaderboard, session.user.id])
+  }, [isComplete, dateKey, challengeMode, elapsedSeconds, onBackToHome, refreshCrucigamaLeaderboard, session.user.id])
 
   // Animación smooth de relleno
   useEffect(() => {
@@ -1164,12 +1189,16 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
                         title={`Fila ${row + 1}`}
                       />
                       {Array.from({ length: puzzle.size }, (_, col) => {
+                        const key = cellKey(row, col)
+                        const expected = puzzle.clues.get(key)
+                        const actual = getPlayCellColor(row, col)
+                        const isCorrect = !!expected && expected.toLowerCase() === actual.toLowerCase()
                         return (
                           <div
                             key={`play-cell-${row}-${col}`}
-                            className={`mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)] ${recentlyCorrectKeys.includes(cellKey(row, col)) ? 'play-correct-pop' : ''}`}
+                            className={`mix-cell border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.14),0_10px_14px_rgba(44,30,12,0.3)] ${isCorrect ? 'ring-2 ring-emerald-500' : ''} ${recentlyCorrectKeys.includes(key) ? 'correct-cell-pop' : ''}`}
                             style={{
-                              backgroundColor: getPlayCellColor(row, col),
+                              backgroundColor: actual,
                             }}
                             title="Casilla de mezcla"
                           />
@@ -1227,7 +1256,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
                 return (
                   <div
                     key={`goal-cell-overlay-${row}-${col}`}
-                    className={`rounded-[3px] shadow-[inset_0_1px_0_rgba(255,255,255,0.38),inset_0_-1px_0_rgba(0,0,0,0.14),0_1px_3px_rgba(44,30,12,0.28)] ${isCorrect ? 'ring-2 ring-emerald-500' : ''} ${recentlyCorrectKeys.includes(key) ? 'objective-correct-pop' : ''}`}
+                    className={`rounded-[3px] shadow-[inset_0_1px_0_rgba(255,255,255,0.38),inset_0_-1px_0_rgba(0,0,0,0.14),0_1px_3px_rgba(44,30,12,0.28)] ${isCorrect ? 'ring-2 ring-emerald-500' : ''} ${recentlyCorrectKeys.includes(key) ? 'correct-cell-pop' : ''}`}
                     style={{
                       backgroundColor: getObjectiveCellColor(row, col),
                     }}
@@ -1257,20 +1286,12 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
           aspect-ratio: 1 / 1;
           width: var(--example-cell-size);
         }
-        .play-correct-pop {
-          animation: play-correct-pop 420ms cubic-bezier(.61,1.6,.7,1);
+        .correct-cell-pop {
+          animation: correct-cell-pop 420ms cubic-bezier(.61,1.6,.7,1);
         }
-        .objective-correct-pop {
-          animation: objective-correct-pop 420ms cubic-bezier(.61,1.6,.7,1);
-        }
-        @keyframes play-correct-pop {
+        @keyframes correct-cell-pop {
           0% { transform: scale(0.92); }
           72% { transform: scale(1.06); }
-          100% { transform: scale(1); }
-        }
-        @keyframes objective-correct-pop {
-          0% { transform: scale(0.88); }
-          72% { transform: scale(1.08); }
           100% { transform: scale(1); }
         }
         
@@ -1331,10 +1352,10 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
 
       {showGame && activeTab === 'game' && (
         <div
-        className="relative z-[100] mx-auto mt-6 w-full max-w-[640px] rounded-[1.75rem] border border-[#d8cab1] bg-gradient-to-br from-[#f5efdf] to-[#eadfc9] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_20px_30px_rgba(86,69,37,0.28)] md:absolute md:right-0 md:top-8 md:mt-0 md:w-max md:max-w-none md:p-4"
+        className="relative z-[100] mx-auto mt-6 w-full max-w-[640px] rounded-[1.75rem] border border-[#d8cab1] bg-gradient-to-br from-[#f5efdf] to-[#eadfc9] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_20px_30px_rgba(86,69,37,0.28)] lg:absolute lg:right-0 lg:top-8 lg:mt-0 lg:w-max lg:max-w-none lg:p-4"
         aria-hidden={false}
       >
-        <div className="grid grid-cols-6 gap-2.5 md:hidden">
+        <div className="grid grid-cols-6 gap-2.5 lg:hidden">
           {activePaletteOptions.map((option) => (
             <button
               key={`mobile-${option.group}-${option.hex}`}
@@ -1353,7 +1374,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
           ))}
         </div>
 
-        <div className="hidden space-y-2.5 md:block">
+        <div className="hidden space-y-2.5 lg:block">
           {[...new Set(activePaletteOptions.map((option) => option.group))].map((group) => (
             <div key={`palette-row-${group}`} className="flex flex-wrap gap-2.5">
               {activePaletteOptions
