@@ -14,7 +14,8 @@ type ColorFusionTabProps = {
   dateKey: string
   session: Session
   showGame: boolean
-  onShowGame: () => void
+  selectedMode: CrucigamaMode
+  onBackToHome: () => void
 }
 
 type Target =
@@ -29,8 +30,9 @@ type FusionPuzzle = {
 }
 
 type CrucigamaTabView = 'game' | 'leaderboard'
-type CrucigamaIntroTab = 'explanation' | 'normal' | 'extreme'
-type CrucigamaMode = 'normal' | 'extreme'
+type CrucigamaIntroTab = 'explanation' | 'normal' | 'extreme' | 'monochrome'
+type LeaderboardMode = 'normal' | 'extreme' | 'monochrome'
+export type CrucigamaMode = 'normal' | 'extreme' | 'monochrome'
 
 type CrucigamaAttempt = {
   userId: string
@@ -81,6 +83,77 @@ const EXTREME_PALETTE_OPTIONS: PaletteOption[] = EXTREME_PALETTE_HEX.map((hex, i
   hex,
   group: index < 9 ? 'Oscuros' : 'Claros',
 }))
+
+const MONOCHROME_FAMILIES: Array<{ name: string; colors: string[] }> = [
+  {
+    name: 'Blancos y negros',
+    colors: ['#050505', '#121212', '#1F1F1F', '#2D2D2D', '#3C3C3C', '#4C4C4C', '#5D5D5D', '#7A7A7A', '#A0A0A0', '#C8C8C8', '#E8E8E8', '#F8F8F8'],
+  },
+  {
+    name: 'Frios',
+    colors: ['#041B2D', '#06314D', '#0A4F78', '#1068A4', '#1A82C8', '#2C9AE3', '#52B3EC', '#7BC9F2', '#A4DCF7', '#C4E9FA', '#DCF3FC', '#EDF9FE'],
+  },
+  {
+    name: 'Calidos',
+    colors: ['#2A0F05', '#4A1C09', '#6B2A0D', '#8D3A12', '#AE4A17', '#C95A1D', '#DE732D', '#EA8E4A', '#F2A86A', '#F7C08F', '#FBD8B8', '#FDEBDD'],
+  },
+  {
+    name: 'Rojos',
+    colors: ['#2A0406', '#45080B', '#620D12', '#80151A', '#9E1E24', '#BB282F', '#D43A41', '#E3595F', '#EC7D82', '#F4A2A5', '#F9C7C9', '#FCE6E7'],
+  },
+  {
+    name: 'Naranjas',
+    colors: ['#2A1204', '#4A1F08', '#6B2D0D', '#8C3C12', '#AA4B18', '#C55B1F', '#DA7431', '#E79152', '#F0AB74', '#F6C399', '#FADBC0', '#FDEDE1'],
+  },
+  {
+    name: 'Amarillos',
+    colors: ['#2A2304', '#4A3B08', '#69530D', '#876C14', '#A1861B', '#B89B24', '#CCB23A', '#DDC95E', '#EBD982', '#F3E8A8', '#F9F2CE', '#FCF8E4'],
+  },
+  {
+    name: 'Verdes bosque',
+    colors: ['#061A0B', '#0B2A12', '#113A1A', '#174A22', '#1E5C2D', '#267038', '#2F8445', '#42995A', '#5BAF72', '#7BC490', '#A3DAB6', '#D5F0DF'],
+  },
+  {
+    name: 'Mentas',
+    colors: ['#04201B', '#07332A', '#0A4538', '#105949', '#16705C', '#1F876F', '#33A083', '#51B79C', '#77CCB7', '#A0DECF', '#C9EEE6', '#E4F7F3'],
+  },
+  {
+    name: 'Turquesas',
+    colors: ['#042125', '#06353C', '#094A54', '#0E5F6A', '#147580', '#1C8B95', '#31A3AB', '#52B8BE', '#79CDD2', '#A4E0E3', '#CDEFF0', '#E6F8F8'],
+  },
+  {
+    name: 'Azules oceanicos',
+    colors: ['#04152A', '#082544', '#0D3560', '#13467D', '#1A589A', '#236AB6', '#3A83CC', '#5A9BDD', '#7EB2EA', '#A6CAF3', '#CBDFF8', '#E5EFFC'],
+  },
+  {
+    name: 'Indigos',
+    colors: ['#080C2A', '#101744', '#17235F', '#1F317A', '#274094', '#3150AD', '#4A68C2', '#6783D4', '#89A0E3', '#AEBFEF', '#D1DBF7', '#EAEEFC'],
+  },
+  {
+    name: 'Violetas',
+    colors: ['#14072A', '#220C44', '#321260', '#431A7B', '#552497', '#6831B1', '#7F4BC7', '#9970D8', '#B49AE7', '#CFC0F1', '#E4DCF8', '#F2ECFC'],
+  },
+  {
+    name: 'Magentas',
+    colors: ['#28071E', '#400B30', '#5A1044', '#74165A', '#901D71', '#AB2788', '#C0419E', '#D064B3', '#DE8AC8', '#EAB0DA', '#F3D5EC', '#FAEAF6'],
+  },
+  {
+    name: 'Rosas',
+    colors: ['#2A0B14', '#43121F', '#5F1A2C', '#7A233A', '#953049', '#AF3F5A', '#C65A72', '#D98193', '#E8A8B4', '#F1C9D1', '#F8E3E8', '#FCEFF2'],
+  },
+  {
+    name: 'Apagados',
+    colors: ['#1F2327', '#2C3136', '#3B4249', '#4A535A', '#5A646B', '#69757C', '#79868C', '#89969C', '#9BA8AE', '#ADB9BE', '#C2CCD0', '#D8DEE0'],
+  },
+  {
+    name: 'Tierra',
+    colors: ['#21170E', '#352518', '#493325', '#5E4331', '#74533E', '#89644B', '#9F775B', '#B48D73', '#C8A58E', '#DABBAB', '#EBDDCE', '#F5EEE8'],
+  },
+  {
+    name: 'Arena',
+    colors: ['#2A2117', '#403126', '#554235', '#6B5344', '#826555', '#997968', '#AE8E7C', '#C1A492', '#D1BAAA', '#E0D0C2', '#ECE2D8', '#F6F0EA'],
+  },
+]
 
 const INTRO_PALETTE_PREVIEW = [
   '#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1', '#5B4788',
@@ -236,16 +309,32 @@ const buildDailyPuzzle = (dateKey: string, paletteHex: string[]): FusionPuzzle =
 }
 
 
-export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: ColorFusionTabProps) {
+export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBackToHome }: ColorFusionTabProps) {
   const [activeTab, setActiveTab] = useState<CrucigamaTabView>('game')
   const [introTab, setIntroTab] = useState<CrucigamaIntroTab>('explanation')
-  const [challengeMode, setChallengeMode] = useState<CrucigamaMode>('normal')
-  const [leaderboardMode, setLeaderboardMode] = useState<CrucigamaMode>('normal')
+  const [challengeMode, setChallengeMode] = useState<CrucigamaMode>(selectedMode)
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>('normal')
   // Estado para toggle de cuadrícula
   const [showObjective, setShowObjective] = useState(false)
+  const monochromeFamily = useMemo(() => {
+    const familyIndex = hashDate(`mono-family-${dateKey}`) % MONOCHROME_FAMILIES.length
+    const family = MONOCHROME_FAMILIES[familyIndex]
+    return {
+      name: family.name,
+      options: family.colors.map((hex) => ({ hex, group: family.name })),
+    }
+  }, [dateKey])
   const activePaletteOptions = useMemo(
-    () => (challengeMode === 'extreme' ? EXTREME_PALETTE_OPTIONS : PALETTE_OPTIONS),
-    [challengeMode],
+    () => {
+      if (challengeMode === 'extreme') {
+        return EXTREME_PALETTE_OPTIONS
+      }
+      if (challengeMode === 'monochrome') {
+        return monochromeFamily.options
+      }
+      return PALETTE_OPTIONS
+    },
+    [challengeMode, monochromeFamily.options],
   )
   const puzzlePaletteHex = useMemo(
     () => activePaletteOptions.map((entry) => entry.hex),
@@ -270,8 +359,10 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
   const [lastCompletedSeconds, setLastCompletedSeconds] = useState<number | null>(null)
   const [leaderboardAttempts, setLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
   const [extremeLeaderboardAttempts, setExtremeLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
+  const [monochromeLeaderboardAttempts, setMonochromeLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
   const [hasCompletedTodayNormal, setHasCompletedTodayNormal] = useState(false)
   const [hasCompletedTodayExtreme, setHasCompletedTodayExtreme] = useState(false)
+  const [hasCompletedTodayMonochrome, setHasCompletedTodayMonochrome] = useState(false)
   const [leaderboardLoading, setLeaderboardLoading] = useState(false)
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
   const soundPlayersRef = useRef<Partial<Record<SoundName, HTMLAudioElement>>>({})
@@ -306,17 +397,20 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
         }
         setLeaderboardAttempts([])
         setExtremeLeaderboardAttempts([])
+        setMonochromeLeaderboardAttempts([])
         setHasCompletedTodayNormal(false)
         setHasCompletedTodayExtreme(false)
+        setHasCompletedTodayMonochrome(false)
         return
       }
 
       const ownModes = new Set((ownData ?? []).map((entry) => entry.mode))
       setHasCompletedTodayNormal(ownModes.has('normal'))
       setHasCompletedTodayExtreme(ownModes.has('extreme'))
+      setHasCompletedTodayMonochrome(ownModes.has('monochrome'))
 
       const allAttempts = (allData ?? []).filter(
-        (attempt) => Number.isFinite(attempt.seconds) && attempt.seconds > 0 && (attempt.mode === 'normal' || attempt.mode === 'extreme'),
+        (attempt) => Number.isFinite(attempt.seconds) && attempt.seconds > 0 && (attempt.mode === 'normal' || attempt.mode === 'extreme' || attempt.mode === 'monochrome'),
       )
 
       const userIds = [...new Set(allAttempts.map((attempt) => attempt.user_id))]
@@ -359,8 +453,14 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
         .map(formatAttempt)
         .sort((a, b) => a.seconds - b.seconds)
 
+      const monochrome = allAttempts
+        .filter((attempt) => attempt.mode === 'monochrome')
+        .map(formatAttempt)
+        .sort((a, b) => a.seconds - b.seconds)
+
       setLeaderboardAttempts(normal)
       setExtremeLeaderboardAttempts(extreme)
+      setMonochromeLeaderboardAttempts(monochrome)
     } finally {
       setLeaderboardLoading(false)
     }
@@ -396,16 +496,35 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
 
   useEffect(() => {
     if (!showGame) {
-      setActiveTab('game')
-      setIntroTab('explanation')
-      setLeaderboardMode(challengeMode)
-      return
+      const timeoutId = window.setTimeout(() => {
+        setActiveTab('game')
+        setIntroTab('explanation')
+        setLeaderboardMode('normal')
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
-    void refreshCrucigamaLeaderboard()
-  }, [showGame, challengeMode, refreshCrucigamaLeaderboard])
+
+    const timeoutId = window.setTimeout(() => {
+      setChallengeMode(selectedMode)
+      setActiveTab('game')
+      setLeaderboardMode(selectedMode)
+    }, 0)
+
+    const refreshTimeoutId = window.setTimeout(() => {
+      void refreshCrucigamaLeaderboard()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.clearTimeout(refreshTimeoutId)
+    }
+  }, [showGame, selectedMode, refreshCrucigamaLeaderboard])
 
   useEffect(() => {
-    void refreshCrucigamaLeaderboard()
+    const timeoutId = window.setTimeout(() => {
+      void refreshCrucigamaLeaderboard()
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
   }, [refreshCrucigamaLeaderboard])
 
   useEffect(() => {
@@ -413,20 +532,28 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
       return
     }
 
-    const blocked = challengeMode === 'extreme' ? hasCompletedTodayExtreme : hasCompletedTodayNormal
+    const blocked = challengeMode === 'extreme'
+      ? hasCompletedTodayExtreme
+      : challengeMode === 'normal'
+        ? hasCompletedTodayNormal
+        : hasCompletedTodayMonochrome
     if (blocked) {
-      setLeaderboardMode(challengeMode)
-      setActiveTab('leaderboard')
+      const timeoutId = window.setTimeout(() => {
+        setLeaderboardMode(challengeMode)
+        setActiveTab('leaderboard')
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
-  }, [showGame, challengeMode, hasCompletedTodayNormal, hasCompletedTodayExtreme])
+  }, [showGame, challengeMode, hasCompletedTodayMonochrome, hasCompletedTodayNormal, hasCompletedTodayExtreme])
 
   useEffect(() => {
     if (!showGame) {
-      setActiveTab('game')
       startedAtRef.current = null
-      setElapsedSeconds(0)
+      const timeoutId = window.setTimeout(() => {
+        setElapsedSeconds(0)
+      }, 0)
       completionHandledRef.current = false
-      return
+      return () => window.clearTimeout(timeoutId)
     }
 
     if (activeTab !== 'game' || isComplete) {
@@ -507,12 +634,12 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
     void saveAttempt()
 
     const timeoutId = window.setTimeout(() => {
-      setLeaderboardMode(challengeMode)
-      setActiveTab('leaderboard')
+      setIntroTab('explanation')
+      onBackToHome()
     }, 1300)
 
     return () => window.clearTimeout(timeoutId)
-  }, [isComplete, dateKey, challengeMode, refreshCrucigamaLeaderboard, session.user.id])
+  }, [isComplete, dateKey, challengeMode, onBackToHome, refreshCrucigamaLeaderboard, session.user.id])
 
   // Animación smooth de relleno
   useEffect(() => {
@@ -697,12 +824,47 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
 
   return (
     <section className="relative overflow-visible rounded-[2rem] border border-[#f6f6f5] bg-gradient-to-br from-[#f7f3ea] via-[#f2ecdf] to-[#ede5d7] p-4 shadow-[0_20px_40px_rgba(92,75,49,0.14)] sm:p-6">
+      {!showGame && (
+        <div className="mb-4 flex justify-center">
+          <div className="inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
+            <button
+              type="button"
+              onClick={() => setIntroTab('explanation')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'explanation' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Explicacion
+            </button>
+            <button
+              type="button"
+              onClick={() => setIntroTab('normal')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'normal' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Tabla normal
+            </button>
+            <button
+              type="button"
+              onClick={() => setIntroTab('extreme')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'extreme' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Tabla extrema
+            </button>
+            <button
+              type="button"
+              onClick={() => setIntroTab('monochrome')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'monochrome' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Monocromatico
+            </button>
+          </div>
+        </div>
+      )}
+
       {showGame && (
         <div className="mb-4 flex items-center justify-between gap-2">
           <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
             {activeTab === 'leaderboard'
-              ? `Tabla diaria · ${leaderboardMode === 'extreme' ? 'Extremo' : 'Normal'}`
-              : `Reto diario · ${challengeMode === 'extreme' ? 'Extremo' : 'Normal'}`}
+              ? `Tabla diaria · ${leaderboardMode === 'extreme' ? 'Extremo' : leaderboardMode === 'monochrome' ? 'Monocromatico' : 'Normal'}`
+              : `Reto diario · ${challengeMode === 'extreme' ? 'Extremo' : challengeMode === 'monochrome' ? 'Monocromatico' : 'Normal'}`}
           </p>
           {activeTab === 'game' && (
             <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
@@ -727,71 +889,37 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
       )}
       {!showGame ? (
         <div className="mx-auto flex max-w-[920px] flex-col items-center gap-5 rounded-[1.8rem] border border-[#ddceb5] bg-gradient-to-b from-[#f8f2e7] via-[#f3ecde] to-[#eee3d2] p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_24px_35px_rgba(94,72,38,0.24)] sm:gap-6 sm:p-6 lg:p-7">
-          <div className="inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
-            <button
-              type="button"
-              onClick={() => setIntroTab('explanation')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'explanation' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Explicación
-            </button>
-            <button
-              type="button"
-              onClick={() => setIntroTab('normal')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'normal' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Tabla reto normal
-            </button>
-            <button
-              type="button"
-              onClick={() => setIntroTab('extreme')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'extreme' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Tabla reto extremo
-            </button>
-          </div>
-
           {introTab === 'normal' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto normal</h3>
               <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy con todos los jugadores.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  if (hasCompletedTodayNormal) {
-                    return
-                  }
-                  setChallengeMode('normal')
-                  setLeaderboardMode('normal')
-                  onShowGame()
-                }}
-                disabled={hasCompletedTodayNormal || leaderboardLoading}
-                className="mt-4 rounded-xl border border-[#8d6b46] bg-gradient-to-b from-[#f8cb7f] via-[#f2a95c] to-[#ea8f45] px-5 py-2 text-sm font-black text-[#4b2f19] shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_10px_14px_rgba(97,62,30,0.2)] transition hover:-translate-y-0.5"
-              >
-                {hasCompletedTodayNormal ? 'Reto normal completado hoy' : 'Jugar reto diario normal'}
-              </button>
               <div className="mt-4">{renderCrucigamaRows(leaderboardAttempts, 'Aún no hay tiempos en reto normal para hoy.')}</div>
             </div>
           ) : introTab === 'extreme' ? (
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto extremo</h3>
               <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy en modo extremo.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  if (hasCompletedTodayExtreme) {
-                    return
-                  }
-                  setChallengeMode('extreme')
-                  setLeaderboardMode('extreme')
-                  onShowGame()
-                }}
-                disabled={hasCompletedTodayExtreme || leaderboardLoading}
-                className="mt-4 rounded-xl border border-[#70483d] bg-gradient-to-b from-[#ffb18f] via-[#f0805a] to-[#cc5a34] px-5 py-2 text-sm font-black text-[#3d1f14] shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_10px_14px_rgba(97,62,30,0.2)] transition hover:-translate-y-0.5"
-              >
-                {hasCompletedTodayExtreme ? 'Reto extremo completado hoy' : 'Jugar reto diario extremo'}
-              </button>
               <div className="mt-4">{renderCrucigamaRows(extremeLeaderboardAttempts, 'Aún no hay tiempos en reto extremo para hoy.')}</div>
+            </div>
+          ) : introTab === 'monochrome' ? (
+            <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
+              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Gama monocromatica del dia</h3>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">
+                Usa 12 colores de una misma gama cromatica. Gama de hoy: <span className="font-black">{monochromeFamily.name}</span>.
+              </p>
+              <div className="mt-4 grid grid-cols-6 gap-2 sm:gap-2.5">
+                {monochromeFamily.options.map((option) => (
+                  <div
+                    key={`mono-preview-${option.hex}`}
+                    className="palette-swatch h-10 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.18)] sm:h-12"
+                    style={{ backgroundColor: option.hex }}
+                    title={option.hex.toUpperCase()}
+                  />
+                ))}
+              </div>
+              <div className="mt-4">
+                {renderCrucigamaRows(monochromeLeaderboardAttempts, 'Aún no hay tiempos en gama monocromatica para hoy.')}
+              </div>
             </div>
           ) : (
           <>
@@ -899,7 +1027,7 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
         </div>
       ) : activeTab === 'leaderboard' ? (
         <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
-          <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Leaderboard CruciGama · {leaderboardMode === 'extreme' ? 'Reto extremo' : 'Reto normal'}</h3>
+          <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Leaderboard CruciGama · {leaderboardMode === 'extreme' ? 'Reto extremo' : leaderboardMode === 'monochrome' ? 'Gama monocromatica' : 'Reto normal'}</h3>
           <p className="mt-1 text-sm font-semibold text-[#6f5539]">Clasificación diaria compartida de todos los jugadores.</p>
 
           <div className="mt-3 inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
@@ -917,6 +1045,13 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
             >
               Extremo
             </button>
+            <button
+              type="button"
+              onClick={() => setLeaderboardMode('monochrome')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${leaderboardMode === 'monochrome' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+            >
+              Monocromatico
+            </button>
           </div>
 
           <div className="mt-4 rounded-2xl border border-[#dbcdb6] bg-[#fff9ef] p-4">
@@ -925,7 +1060,11 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
               {lastCompletedSeconds != null
                 ? formatSeconds(lastCompletedSeconds)
                 : (() => {
-                    const sourceAttempts = leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts
+                    const sourceAttempts = leaderboardMode === 'extreme'
+                      ? extremeLeaderboardAttempts
+                      : leaderboardMode === 'monochrome'
+                        ? monochromeLeaderboardAttempts
+                        : leaderboardAttempts
                     const todayAttempt = sourceAttempts.find((attempt) => attempt.userId === session.user.id)
                     return todayAttempt ? formatSeconds(todayAttempt.seconds) : '--:--'
                   })()}
@@ -934,7 +1073,11 @@ export function ColorFusionTab({ dateKey, session, showGame, onShowGame }: Color
 
           <div className="mt-4 space-y-2">
             {renderCrucigamaRows(
-              leaderboardMode === 'extreme' ? extremeLeaderboardAttempts : leaderboardAttempts,
+              leaderboardMode === 'extreme'
+                ? extremeLeaderboardAttempts
+                : leaderboardMode === 'monochrome'
+                  ? monochromeLeaderboardAttempts
+                  : leaderboardAttempts,
               'Aún no hay tiempos guardados. Completa una partida para registrar tu marca.',
             )}
           </div>

@@ -35,6 +35,7 @@ const LazyCrosswordTab = lazy(() => import('./components/CrosswordTab').then((mo
 
 type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
 type GameTab = 'dailyColor' | 'crossword' | 'animatedCharacter' | 'profile'
+type CrucigamaMode = 'normal' | 'extreme' | 'monochrome'
 
 type ResultState = {
   targetHex: string
@@ -211,6 +212,8 @@ function App() {
   const [activeGameTab, setActiveGameTab] = useState<GameTab>('dailyColor')
   const [crosswordView, setCrosswordView] = useState<'home' | 'play'>('home')
   const [crucigamaView, setCrucigamaView] = useState<'home' | 'play'>('home')
+  const [crucigamaMode, setCrucigamaMode] = useState<CrucigamaMode>('normal')
+  const [isCrucigamaModePickerOpen, setIsCrucigamaModePickerOpen] = useState(false)
   const [hasCompletedCrosswordToday, setHasCompletedCrosswordToday] = useState(false)
   const [viewDate, setViewDate] = useState<string>(() => todayKey())
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
@@ -1838,13 +1841,19 @@ function App() {
     setStage('home')
   }, [])
 
+  const beginCrucigamaChallenge = useCallback((mode: CrucigamaMode) => {
+    setCrucigamaMode(mode)
+    setCrucigamaView('play')
+    setIsCrucigamaModePickerOpen(false)
+  }, [])
+
   const handlePrimaryAction = () => {
     if (activeGameTab === 'profile') {
       return
     }
 
     if (activeGameTab === 'animatedCharacter') {
-      setCrucigamaView('play')
+      setIsCrucigamaModePickerOpen((previous) => !previous)
       return
     }
 
@@ -1890,33 +1899,64 @@ function App() {
               </div>
 
               <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[290px]">
-                {activeGameTab !== 'animatedCharacter' && activeGameTab !== 'profile' && (
-                  <button
-                    type="button"
-                    onClick={handlePrimaryAction}
-                    disabled={activeGameTab === 'dailyColor'
-                      ? (
-                          hasPlayedOnViewDate ||
-                          loadingData ||
-                          isBeforeFirstPlayableViewDate
-                        )
-                      : activeGameTab === 'crossword'
+                {activeGameTab !== 'profile' && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={handlePrimaryAction}
+                      disabled={activeGameTab === 'dailyColor'
+                        ? (
+                            hasPlayedOnViewDate ||
+                            loadingData ||
+                            isBeforeFirstPlayableViewDate
+                          )
+                        : activeGameTab === 'crossword'
+                          ? hasCompletedCrosswordToday
+                          : false}
+                      className="w-full rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {activeGameTab === 'crossword'
                         ? hasCompletedCrosswordToday
-                        : false}
-                    className="rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {activeGameTab === 'crossword'
-                      ? hasCompletedCrosswordToday
-                        ? 'Crucigrama completado'
-                        : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
-                      : !isColorGameActive
-                        ? 'Disponible pronto'
-                        : isBeforeFirstPlayableViewDate
-                          ? 'No disponible'
-                          : hasPlayedOnViewDate
-                            ? 'Reto ya completado'
-                            : 'Jugar reto diario'}
-                  </button>
+                          ? 'Crucigrama completado'
+                          : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
+                        : activeGameTab === 'animatedCharacter'
+                          ? (crucigamaView === 'play' ? 'CruciGama abierto' : 'Jugar CruciGama')
+                          : !isColorGameActive
+                            ? 'Disponible pronto'
+                            : isBeforeFirstPlayableViewDate
+                              ? 'No disponible'
+                              : hasPlayedOnViewDate
+                                ? 'Reto ya completado'
+                                : 'Jugar reto diario'}
+                    </button>
+
+                    {activeGameTab === 'animatedCharacter' && isCrucigamaModePickerOpen && (
+                      <div className="absolute right-0 z-30 mt-2 w-full min-w-[230px] rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
+                        <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Elige modo</p>
+                        <button
+                          type="button"
+                          onClick={() => beginCrucigamaChallenge('normal')}
+                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                        >
+                          Normal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => beginCrucigamaChallenge('extreme')}
+                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                        >
+                          Extremo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => beginCrucigamaChallenge('monochrome')}
+                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                        >
+                          Monocromatico
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {WARMUP_ENABLED && canUseWarmupFeature && isColorGameActive && (
@@ -1958,6 +1998,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setActiveGameTab('dailyColor')
+                  setIsCrucigamaModePickerOpen(false)
                   setCrosswordView('home')
                   setStage('home')
                 }}
@@ -1973,6 +2014,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setActiveGameTab('crossword')
+                  setIsCrucigamaModePickerOpen(false)
                   setCrosswordView('home')
                   setStage('home')
                 }}
@@ -1988,6 +2030,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setActiveGameTab('animatedCharacter')
+                  setIsCrucigamaModePickerOpen(false)
                   setCrosswordView('home')
                   setCrucigamaView('home')
                   setStage('home')
@@ -2013,6 +2056,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setActiveGameTab('profile')
+                  setIsCrucigamaModePickerOpen(false)
                   setProfileTarget(null)
                   setCrosswordView('home')
                   setCrucigamaView('home')
@@ -2103,7 +2147,13 @@ function App() {
 
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
           <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando CruciGama...</section>}>
-            <LazyColorFusionTab session={session} dateKey={date} showGame={crucigamaView === 'play'} onShowGame={() => setCrucigamaView('play')} />
+            <LazyColorFusionTab
+              session={session}
+              dateKey={date}
+              showGame={crucigamaView === 'play'}
+              selectedMode={crucigamaMode}
+              onBackToHome={() => setCrucigamaView('home')}
+            />
           </Suspense>
         )}
 
