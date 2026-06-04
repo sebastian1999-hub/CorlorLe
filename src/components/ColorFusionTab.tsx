@@ -912,7 +912,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
             <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
               <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Gama monocromatica del dia</h3>
               <p className="mt-1 text-sm font-semibold text-[#6f5539]">
-                Te pueden salir estas 4 gamas posibles del diario. La de hoy es <span className="font-black">{monochromeFamily.name}</span>.
+                Te saldra una de entre estas 4 gamas cromaticas.
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {monochromePreviewFamilies.map((family) => (
