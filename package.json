@@ -14,8 +14,6 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
-    "crossword-generator": "^1.0.1",
-    "crossword-layout-generator": "^0.1.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

@@ -80,9 +80,3 @@ export type TournamentMatchPrediction = {
   predictedWinnerUserId: string
 }
 
-export type CrosswordAttempt = {
-  id: string
-  userId: string
-  date: string
-  seconds: number
-}

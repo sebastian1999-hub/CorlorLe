@@ -7,12 +7,22 @@ import bronzeMedal from '../assets/copa-de-bronce.png'
 type LeaderboardProps = {
   entries: LeaderboardEntry[]
   title?: string
+  subtitle?: string
+  scoreUnit?: string
   showColors?: boolean
   animationToken?: string
   onAvatarClick?: (entry: LeaderboardEntry) => void
 }
 
-export function Leaderboard({ entries, title = 'Clasificacion general', showColors = true, animationToken, onAvatarClick }: LeaderboardProps) {
+export function Leaderboard({
+  entries,
+  title = 'Clasificacion general',
+  subtitle = `Ranking diario · ${entries.length} jugadores`,
+  scoreUnit = 'pts',
+  showColors = true,
+  animationToken,
+  onAvatarClick,
+}: LeaderboardProps) {
   const medalByIndex = [
     { src: goldMedal, alt: 'Medalla de oro', className: 'h-10 w-10 sm:h-12 sm:w-12' },
     { src: silverMedal, alt: 'Medalla de plata', className: 'h-9 w-9 sm:h-11 sm:w-11' },
@@ -52,7 +62,7 @@ export function Leaderboard({ entries, title = 'Clasificacion general', showColo
     <section className="rounded-3xl border border-zinc-900/10 bg-white/80 p-4 shadow-lg backdrop-blur sm:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-1">
         <h2 className="text-base font-bold text-zinc-900 sm:text-xl">{title}</h2>
-        <p className="text-sm whitespace-nowrap text-zinc-500">Ranking diario · {entries.length} jugadores</p>
+        <p className="text-sm whitespace-nowrap text-zinc-500">{subtitle}</p>
       </div>
 
       {entries.length === 0 ? (
@@ -123,7 +133,7 @@ export function Leaderboard({ entries, title = 'Clasificacion general', showColo
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <p className="whitespace-nowrap text-sm font-black text-emerald-300 sm:text-base">{entry.totalScore.toFixed(0)} pts</p>
+                  <p className="whitespace-nowrap text-sm font-black text-emerald-300 sm:text-base">{entry.totalScore.toFixed(0)} {scoreUnit}</p>
                   <div className="grid grid-cols-2 gap-1 sm:gap-2">
                     {showColors ? (
                       entry.targetColor ? (

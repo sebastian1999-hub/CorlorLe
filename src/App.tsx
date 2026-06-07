@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import type { Session } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { HsvPicker } from './components/HsvPicker'
+import { InfiniteColorimetroPanel } from './components/InfiniteColorimetroPanel'
 import { Leaderboard } from './components/Leaderboard'
 import { ProfileTab } from './components/ProfileTab'
 import { Records } from './components/Records'
@@ -31,11 +32,11 @@ import type {
 } from './types'
 
 const LazyColorFusionTab = lazy(() => import('./components/ColorFusionTab').then((module) => ({ default: module.ColorFusionTab })))
-const LazyCrosswordTab = lazy(() => import('./components/CrosswordTab').then((module) => ({ default: module.CrosswordTab })))
 
 type Stage = 'home' | 'difficulty' | 'preview' | 'pick' | 'result' | 'records' | 'tournamentPreview' | 'tournamentPick'
-type GameTab = 'dailyColor' | 'crossword' | 'animatedCharacter' | 'profile'
-type CrucigamaMode = 'normal' | 'extreme' | 'monochrome'
+type GameTab = 'dailyColor' | 'animatedCharacter' | 'profile'
+type CrucigamaMode = 'normal' | 'infinite'
+type ColorimetroLeaderboardTab = 'daily' | 'infinite'
 
 type ResultState = {
   targetHex: string
@@ -209,12 +210,13 @@ function App() {
   const [result, setResult] = useState<ResultState | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [infiniteLeaderboard, setInfiniteLeaderboard] = useState<LeaderboardEntry[]>([])
   const [activeGameTab, setActiveGameTab] = useState<GameTab>('dailyColor')
-  const [crosswordView, setCrosswordView] = useState<'home' | 'play'>('home')
+  const [colorimetroLeaderboardTab, setColorimetroLeaderboardTab] = useState<ColorimetroLeaderboardTab>('daily')
+  const [infiniteLeaderboardLoading, setInfiniteLeaderboardLoading] = useState(false)
+  const [infiniteLeaderboardError, setInfiniteLeaderboardError] = useState<string | null>(null)
   const [crucigamaView, setCrucigamaView] = useState<'home' | 'play'>('home')
   const [crucigamaMode, setCrucigamaMode] = useState<CrucigamaMode>('normal')
-  const [isCrucigamaModePickerOpen, setIsCrucigamaModePickerOpen] = useState(false)
-  const [hasCompletedCrosswordToday, setHasCompletedCrosswordToday] = useState(false)
   const [viewDate, setViewDate] = useState<string>(() => todayKey())
   const [hasPlayedOnViewDate, setHasPlayedOnViewDate] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
@@ -1025,6 +1027,98 @@ function App() {
     setLoadingData(false)
   }, [session])
 
+  const refreshInfiniteLeaderboard = useCallback(async () => {
+    if (!session) {
+      return
+    }
+
+    setInfiniteLeaderboardLoading(true)
+    setInfiniteLeaderboardError(null)
+
+    const { data: infiniteAttemptsData, error: infiniteError } = await supabase
+      .from('infinite_attempts')
+      .select('user_id,floors')
+
+    if (infiniteError) {
+      if (infiniteError.message.toLowerCase().includes('infinite_attempts')) {
+        setInfiniteLeaderboardError('Falta crear la tabla infinite_attempts en Supabase para la clasificacion de modo infinito.')
+      } else {
+        setInfiniteLeaderboardError(infiniteError.message ?? 'No se pudo cargar la clasificacion de modo infinito.')
+      }
+      setInfiniteLeaderboard([])
+      setInfiniteLeaderboardLoading(false)
+      return
+    }
+
+    const attempts = infiniteAttemptsData ?? []
+    const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
+
+    let usernameById: Record<string, string> = {}
+    let avatarUrlById: Record<string, string | undefined> = {}
+
+    if (userIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id,username,avatar_url')
+        .in('id', userIds)
+
+      usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+        acc[profile.id] = profile.username
+        return acc
+      }, {})
+      avatarUrlById = (profilesData ?? []).reduce<Record<string, string | undefined>>((acc, profile) => {
+        acc[profile.id] = profile.avatar_url ?? undefined
+        return acc
+      }, {})
+    }
+
+    const aggregated = userIds.map((uid) => {
+      const userAttempts = attempts.filter((attempt) => attempt.user_id === uid)
+      const bestFloors = userAttempts.reduce((best, attempt) => Math.max(best, Number(attempt.floors ?? 0)), 0)
+
+      return {
+        userId: uid,
+        username:
+          usernameById[uid] ??
+          fallbackUsername(
+            uid === session.user.id ? session.user.email : undefined,
+            uid,
+          ),
+        avatarUrl: avatarUrlById[uid],
+        totalScore: bestFloors,
+        gamesPlayed: userAttempts.length,
+      }
+    })
+
+    aggregated.sort((a, b) => b.totalScore - a.totalScore)
+    setInfiniteLeaderboard(aggregated)
+    setInfiniteLeaderboardLoading(false)
+  }, [session])
+
+  const saveInfiniteRunResult = useCallback(async (floorsCompleted: number) => {
+    if (!session) {
+      return
+    }
+
+    const { error } = await supabase
+      .from('infinite_attempts')
+      .insert({
+        user_id: session.user.id,
+        floors: floorsCompleted,
+      })
+
+    if (error) {
+      if (error.message.toLowerCase().includes('infinite_attempts')) {
+        setInfiniteLeaderboardError('Falta crear la tabla infinite_attempts en Supabase para guardar resultados del modo infinito.')
+      } else {
+        setInfiniteLeaderboardError(error.message ?? 'No se pudo guardar el resultado del modo infinito.')
+      }
+      return
+    }
+
+    await refreshInfiniteLeaderboard()
+  }, [refreshInfiniteLeaderboard, session])
+
   const refreshDailyState = useCallback(async () => {
     if (!session) {
       return
@@ -1036,7 +1130,6 @@ function App() {
     const [
       { data: ownAttempt, error: ownError },
       { data: allAttemptsData, error: leaderboardError },
-      { data: ownCrosswordAttempt, error: ownCrosswordError },
     ] =
       await Promise.all([
         supabase
@@ -1048,12 +1141,6 @@ function App() {
         supabase
           .from('attempts')
           .select('user_id,score,date'),
-        supabase
-          .from('crossword_attempts')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .eq('date', date)
-          .maybeSingle(),
       ])
 
     if (ownError || leaderboardError) {
@@ -1063,14 +1150,6 @@ function App() {
     }
 
     setHasPlayedToday(Boolean(ownAttempt))
-    if (ownCrosswordError) {
-      const relationMissing = ownCrosswordError.message.toLowerCase().includes('crossword_attempts')
-      if (relationMissing) {
-        setHasCompletedCrosswordToday(false)
-      }
-    } else {
-      setHasCompletedCrosswordToday(Boolean(ownCrosswordAttempt))
-    }
 
     const attempts = allAttemptsData ?? []
     const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
@@ -1318,7 +1397,6 @@ function App() {
         setStage('home')
         setResult(null)
         setHasPlayedToday(false)
-        setHasCompletedCrosswordToday(false)
         setIsPracticeMode(false)
         setActiveTournamentMatchId(null)
         setActiveTournamentRoundNumber(null)
@@ -1332,15 +1410,6 @@ function App() {
       subscription.unsubscribe()
     }
   }, [resolveAuthorizedSession])
-
-  useEffect(() => {
-    // Preload the crossword chunk in background so tab navigation feels instant.
-    const timeoutId = window.setTimeout(() => {
-      void import('./components/CrosswordTab')
-    }, 1200)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [])
 
   useEffect(() => {
     if (!session) {
@@ -1363,6 +1432,18 @@ function App() {
 
     return () => window.clearTimeout(timeout)
   }, [viewDate, refreshDailyLeaderboard, session])
+
+  useEffect(() => {
+    if (!session) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      void refreshInfiniteLeaderboard()
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
+  }, [refreshInfiniteLeaderboard, session])
 
   useEffect(() => {
     if (!session || !RECORDS_ENABLED) {
@@ -1836,7 +1917,6 @@ function App() {
       avatarUrl: entry.avatarUrl,
     })
     setActiveGameTab('profile')
-    setCrosswordView('home')
     setCrucigamaView('home')
     setStage('home')
   }, [])
@@ -1844,7 +1924,6 @@ function App() {
   const beginCrucigamaChallenge = useCallback((mode: CrucigamaMode) => {
     setCrucigamaMode(mode)
     setCrucigamaView('play')
-    setIsCrucigamaModePickerOpen(false)
   }, [])
 
   const handlePrimaryAction = () => {
@@ -1853,15 +1932,7 @@ function App() {
     }
 
     if (activeGameTab === 'animatedCharacter') {
-      setIsCrucigamaModePickerOpen((previous) => !previous)
-      return
-    }
-
-    if (activeGameTab === 'crossword') {
-      if (hasCompletedCrosswordToday) {
-        return
-      }
-      setCrosswordView('play')
+      beginCrucigamaChallenge('normal')
       return
     }
 
@@ -1910,17 +1981,11 @@ function App() {
                             loadingData ||
                             isBeforeFirstPlayableViewDate
                           )
-                        : activeGameTab === 'crossword'
-                          ? hasCompletedCrosswordToday
-                          : false}
+                        : false}
                       className="w-full rounded-xl bg-zinc-950 px-5 py-3 font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {activeGameTab === 'crossword'
-                        ? hasCompletedCrosswordToday
-                          ? 'Crucigrama completado'
-                          : (crosswordView === 'play' ? 'Crucigrama abierto' : 'Ir al crucigrama')
-                        : activeGameTab === 'animatedCharacter'
-                          ? (crucigamaView === 'play' ? 'CruciGama abierto' : 'Jugar CruciGama')
+                      {activeGameTab === 'animatedCharacter'
+                          ? (crucigamaView === 'play' ? 'CruciGama abierto' : 'Jugar reto diario')
                           : !isColorGameActive
                             ? 'Disponible pronto'
                             : isBeforeFirstPlayableViewDate
@@ -1930,31 +1995,8 @@ function App() {
                                 : 'Jugar reto diario'}
                     </button>
 
-                    {activeGameTab === 'animatedCharacter' && isCrucigamaModePickerOpen && (
-                      <div className="absolute right-0 top-full z-[80] mt-2 w-full min-w-[230px] rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
-                        <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Elige modo</p>
-                        <button
-                          type="button"
-                          onClick={() => beginCrucigamaChallenge('normal')}
-                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-                        >
-                          Normal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => beginCrucigamaChallenge('extreme')}
-                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-                        >
-                          Extremo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => beginCrucigamaChallenge('monochrome')}
-                          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-                        >
-                          Monocromatico
-                        </button>
-                      </div>
+                    {activeGameTab === 'animatedCharacter' && crucigamaView === 'play' && (
+                      <div className="absolute right-0 top-full z-[80] mt-2 w-full" />
                     )}
                   </div>
                 )}
@@ -1993,13 +2035,11 @@ function App() {
               </div>
             </div>
 
-            <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-2 sm:grid-cols-4">
+            <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-2 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => {
                   setActiveGameTab('dailyColor')
-                  setIsCrucigamaModePickerOpen(false)
-                  setCrosswordView('home')
                   setStage('home')
                 }}
                 className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
@@ -2008,30 +2048,12 @@ function App() {
                     : 'bg-white text-zinc-600 hover:text-zinc-900'
                 }`}
               >
-                Adivina el color del dia
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveGameTab('crossword')
-                  setIsCrucigamaModePickerOpen(false)
-                  setCrosswordView('home')
-                  setStage('home')
-                }}
-                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
-                  activeGameTab === 'crossword'
-                    ? 'bg-zinc-900 text-zinc-100 shadow'
-                    : 'bg-white text-zinc-600 hover:text-zinc-900'
-                }`}
-              >
-                Crucigrama
+                Colorimetro
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setActiveGameTab('animatedCharacter')
-                  setIsCrucigamaModePickerOpen(false)
-                  setCrosswordView('home')
                   setCrucigamaView('home')
                   setStage('home')
                 }}
@@ -2056,9 +2078,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setActiveGameTab('profile')
-                  setIsCrucigamaModePickerOpen(false)
                   setProfileTarget(null)
-                  setCrosswordView('home')
                   setCrucigamaView('home')
                   setStage('home')
                 }}
@@ -2078,6 +2098,32 @@ function App() {
 
         {stage === 'home' && isColorGameActive && (
           <div className="space-y-4">
+            <div className="flex w-fit rounded-full border border-zinc-200 bg-zinc-50/80 p-1">
+              <button
+                type="button"
+                onClick={() => setColorimetroLeaderboardTab('daily')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  colorimetroLeaderboardTab === 'daily'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Clasificacion diaria
+              </button>
+              <button
+                type="button"
+                onClick={() => setColorimetroLeaderboardTab('infinite')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  colorimetroLeaderboardTab === 'infinite'
+                    ? 'bg-zinc-900 text-zinc-100 shadow'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Modo infinito
+              </button>
+            </div>
+
+            {colorimetroLeaderboardTab === 'daily' ? (
             <div className="space-y-2">
               <div className="space-y-2" aria-busy={isDailyLeaderboardBusy}>
                 <div className="flex items-center justify-between gap-2 rounded-2xl border border-zinc-900/10 bg-white/80 px-3 py-2 shadow backdrop-blur">
@@ -2117,6 +2163,37 @@ function App() {
                 />
             </div>
           </div>
+            ) : (
+              <>
+                {infiniteLeaderboardError ? (
+                  <p className="rounded-xl border border-amber-300/40 bg-amber-100 px-3 py-2 text-sm text-amber-800">{infiniteLeaderboardError}</p>
+                ) : null}
+
+                <div className="space-y-2" aria-busy={infiniteLeaderboardLoading}>
+                  <div className={`flex items-center gap-2 px-1 text-xs text-zinc-500 transition-opacity duration-200 ${infiniteLeaderboardLoading ? 'opacity-100' : 'opacity-0'}`}>
+                    <span className="h-2 w-2 rounded-full bg-zinc-400 animate-pulse" />
+                    <span>Cargando clasificacion de modo infinito...</span>
+                  </div>
+                  <Leaderboard
+                    entries={infiniteLeaderboard.slice(0, 1)}
+                    title="Campeon de la torre infinita"
+                    subtitle={infiniteLeaderboard.length > 0 ? 'Lider global por pisos completados' : 'Aun no hay campeon registrado'}
+                    scoreUnit="pisos"
+                    showColors={false}
+                    animationToken={`infinite-${infiniteLeaderboard.length}`}
+                    onAvatarClick={openProfileFromLeaderboard}
+                  />
+                </div>
+
+                <InfiniteColorimetroPanel
+                  onRunFailed={(floorsCompleted) => saveInfiniteRunResult(floorsCompleted)}
+                  onBackToLeaderboard={() => {
+                    setColorimetroLeaderboardTab('infinite')
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                />
+              </>
+            )}
 
             {/* Tabla general ocultada por ahora para no mostrarla en UI.
             {leaderboardTab === 'general' && (
@@ -2134,17 +2211,6 @@ function App() {
           </div>
         )}
 
-        {stage === 'home' && activeGameTab === 'crossword' && (
-          <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando crucigrama...</section>}>
-            <LazyCrosswordTab
-              session={session}
-              dateKey={date}
-              showGame={crosswordView === 'play'}
-              onBackToPodium={() => setCrosswordView('home')}
-            />
-          </Suspense>
-        )}
-
         {stage === 'home' && activeGameTab === 'animatedCharacter' && (
           <Suspense fallback={<section className="rounded-3xl border border-zinc-900/10 bg-white/85 p-4 text-sm font-semibold text-zinc-600 shadow-lg backdrop-blur sm:p-6">Cargando CruciGama...</section>}>
             <LazyColorFusionTab
@@ -2153,6 +2219,7 @@ function App() {
               showGame={crucigamaView === 'play'}
               selectedMode={crucigamaMode}
               onBackToHome={() => setCrucigamaView('home')}
+              onStartInfinite={() => beginCrucigamaChallenge('infinite')}
             />
           </Suspense>
         )}

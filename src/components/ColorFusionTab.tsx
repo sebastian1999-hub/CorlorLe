@@ -16,6 +16,7 @@ type ColorFusionTabProps = {
   showGame: boolean
   selectedMode: CrucigamaMode
   onBackToHome: () => void
+  onStartInfinite: () => void
 }
 
 type Target =
@@ -30,9 +31,9 @@ type FusionPuzzle = {
 }
 
 type CrucigamaTabView = 'game' | 'leaderboard'
-type CrucigamaIntroTab = 'explanation' | 'normal' | 'extreme' | 'monochrome'
-type LeaderboardMode = 'normal' | 'extreme' | 'monochrome'
-export type CrucigamaMode = 'normal' | 'extreme' | 'monochrome'
+type CrucigamaIntroTab = 'daily' | 'infinite'
+type LeaderboardMode = 'normal' | 'infinite'
+export type CrucigamaMode = 'normal' | 'infinite'
 
 type CrucigamaAttempt = {
   userId: string
@@ -42,6 +43,14 @@ type CrucigamaAttempt = {
   mode: CrucigamaMode
   seconds: number
   completedAt: string
+}
+
+type CrucigamaInfiniteEntry = {
+  userId: string
+  username: string
+  avatarUrl?: string
+  bestFloors: number
+  runsPlayed: number
 }
 
 //
@@ -84,85 +93,6 @@ const EXTREME_PALETTE_OPTIONS: PaletteOption[] = EXTREME_PALETTE_HEX.map((hex, i
   group: index < 9 ? 'Oscuros' : 'Claros',
 }))
 
-const MONOCHROME_FAMILIES: Array<{ name: string; colors: string[] }> = [
-  {
-    name: 'Blancos y negros',
-    colors: ['#050505', '#121212', '#1F1F1F', '#2D2D2D', '#3C3C3C', '#4C4C4C', '#5D5D5D', '#7A7A7A', '#A0A0A0', '#C8C8C8', '#E8E8E8', '#F8F8F8'],
-  },
-  {
-    name: 'Frios',
-    colors: ['#041B2D', '#06314D', '#0A4F78', '#1068A4', '#1A82C8', '#2C9AE3', '#52B3EC', '#7BC9F2', '#A4DCF7', '#C4E9FA', '#DCF3FC', '#EDF9FE'],
-  },
-  {
-    name: 'Calidos',
-    colors: ['#2A0F05', '#4A1C09', '#6B2A0D', '#8D3A12', '#AE4A17', '#C95A1D', '#DE732D', '#EA8E4A', '#F2A86A', '#F7C08F', '#FBD8B8', '#FDEBDD'],
-  },
-  {
-    name: 'Rojos',
-    colors: ['#2A0406', '#45080B', '#620D12', '#80151A', '#9E1E24', '#BB282F', '#D43A41', '#E3595F', '#EC7D82', '#F4A2A5', '#F9C7C9', '#FCE6E7'],
-  },
-  {
-    name: 'Naranjas',
-    colors: ['#2A1204', '#4A1F08', '#6B2D0D', '#8C3C12', '#AA4B18', '#C55B1F', '#DA7431', '#E79152', '#F0AB74', '#F6C399', '#FADBC0', '#FDEDE1'],
-  },
-  {
-    name: 'Amarillos',
-    colors: ['#2A2304', '#4A3B08', '#69530D', '#876C14', '#A1861B', '#B89B24', '#CCB23A', '#DDC95E', '#EBD982', '#F3E8A8', '#F9F2CE', '#FCF8E4'],
-  },
-  {
-    name: 'Verdes bosque',
-    colors: ['#061A0B', '#0B2A12', '#113A1A', '#174A22', '#1E5C2D', '#267038', '#2F8445', '#42995A', '#5BAF72', '#7BC490', '#A3DAB6', '#D5F0DF'],
-  },
-  {
-    name: 'Mentas',
-    colors: ['#04201B', '#07332A', '#0A4538', '#105949', '#16705C', '#1F876F', '#33A083', '#51B79C', '#77CCB7', '#A0DECF', '#C9EEE6', '#E4F7F3'],
-  },
-  {
-    name: 'Turquesas',
-    colors: ['#042125', '#06353C', '#094A54', '#0E5F6A', '#147580', '#1C8B95', '#31A3AB', '#52B8BE', '#79CDD2', '#A4E0E3', '#CDEFF0', '#E6F8F8'],
-  },
-  {
-    name: 'Azules oceanicos',
-    colors: ['#04152A', '#082544', '#0D3560', '#13467D', '#1A589A', '#236AB6', '#3A83CC', '#5A9BDD', '#7EB2EA', '#A6CAF3', '#CBDFF8', '#E5EFFC'],
-  },
-  {
-    name: 'Indigos',
-    colors: ['#080C2A', '#101744', '#17235F', '#1F317A', '#274094', '#3150AD', '#4A68C2', '#6783D4', '#89A0E3', '#AEBFEF', '#D1DBF7', '#EAEEFC'],
-  },
-  {
-    name: 'Violetas',
-    colors: ['#14072A', '#220C44', '#321260', '#431A7B', '#552497', '#6831B1', '#7F4BC7', '#9970D8', '#B49AE7', '#CFC0F1', '#E4DCF8', '#F2ECFC'],
-  },
-  {
-    name: 'Magentas',
-    colors: ['#28071E', '#400B30', '#5A1044', '#74165A', '#901D71', '#AB2788', '#C0419E', '#D064B3', '#DE8AC8', '#EAB0DA', '#F3D5EC', '#FAEAF6'],
-  },
-  {
-    name: 'Rosas',
-    colors: ['#2A0B14', '#43121F', '#5F1A2C', '#7A233A', '#953049', '#AF3F5A', '#C65A72', '#D98193', '#E8A8B4', '#F1C9D1', '#F8E3E8', '#FCEFF2'],
-  },
-  {
-    name: 'Apagados',
-    colors: ['#1F2327', '#2C3136', '#3B4249', '#4A535A', '#5A646B', '#69757C', '#79868C', '#89969C', '#9BA8AE', '#ADB9BE', '#C2CCD0', '#D8DEE0'],
-  },
-  {
-    name: 'Tierra',
-    colors: ['#21170E', '#352518', '#493325', '#5E4331', '#74533E', '#89644B', '#9F775B', '#B48D73', '#C8A58E', '#DABBAB', '#EBDDCE', '#F5EEE8'],
-  },
-  {
-    name: 'Arena',
-    colors: ['#2A2117', '#403126', '#554235', '#6B5344', '#826555', '#997968', '#AE8E7C', '#C1A492', '#D1BAAA', '#E0D0C2', '#ECE2D8', '#F6F0EA'],
-  },
-]
-
-const INTRO_PALETTE_PREVIEW = [
-  '#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1', '#5B4788',
-  '#E0E0E0', '#EF9A9A', '#FFCC80', '#A5D6A7', '#90CAF9', '#B493C4',
-]
-
-const INTRO_COLUMN_SELECTOR_COLORS = ['#1E1E1E', '#C00000', '#E65100', '#2E7D32', '#0D47A1']
-const INTRO_ROW_SELECTOR_COLORS = ['#E0E0E0', '#EF9A9A', '#FFCC80', '#A5D6A7', '#90CAF9']
-
 const CONFETTI_COLORS = [
   '#F472B6', '#F87171', '#34D399', '#FBBF24', '#60A5FA', '#A3E635', '#F43F5E', '#F59E42', '#10B981',
 ]
@@ -175,6 +105,12 @@ const SOUND_SOURCES = {
   flip: flipSoundSrc,
   complete: completeSoundSrc,
 } as const
+
+const INFINITE_START_COLORS = 3
+const INFINITE_PANEL_SECONDS = 5 * 60
+
+const INFINITE_COLOR_POOL = [...new Set([...PALETTE_OPTIONS, ...EXTREME_PALETTE_OPTIONS].map((entry) => entry.hex))]
+const DEFAULT_INFINITE_PALETTE = INFINITE_COLOR_POOL.slice(0, INFINITE_START_COLORS)
 
 type SoundName = keyof typeof SOUND_SOURCES
 
@@ -206,6 +142,19 @@ const createRng = (seed: number): (() => number) => {
 const pickFrom = <T,>(items: T[], rng: () => number): T => {
   const index = Math.floor(rng() * items.length)
   return items[Math.max(0, Math.min(items.length - 1, index))]
+}
+
+const pickUniqueRandomColors = (pool: string[], count: number, exclude: string[] = []): string[] => {
+  const excludedSet = new Set(exclude.map((color) => color.toLowerCase()))
+  const available = pool.filter((color) => !excludedSet.has(color.toLowerCase()))
+  const shuffled = [...available]
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+  }
+
+  return shuffled.slice(0, Math.max(0, Math.min(count, shuffled.length)))
 }
 
 const mixColors = (a: string, b: string): string => {
@@ -309,49 +258,46 @@ const buildDailyPuzzle = (dateKey: string, paletteHex: string[]): FusionPuzzle =
 }
 
 
-export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBackToHome }: ColorFusionTabProps) {
+export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBackToHome, onStartInfinite }: ColorFusionTabProps) {
   const [activeTab, setActiveTab] = useState<CrucigamaTabView>('game')
-  const [introTab, setIntroTab] = useState<CrucigamaIntroTab>('explanation')
+  const [introTab, setIntroTab] = useState<CrucigamaIntroTab>('daily')
   const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>('normal')
   // Estado para toggle de cuadrícula
   const [showObjective, setShowObjective] = useState(false)
   const challengeMode = selectedMode
-  const monochromeFamily = useMemo(() => {
-    const familyIndex = hashDate(`mono-family-${dateKey}`) % MONOCHROME_FAMILIES.length
-    const family = MONOCHROME_FAMILIES[familyIndex]
-    return {
-      name: family.name,
-      options: family.colors.map((hex) => ({ hex, group: family.name })),
-    }
-  }, [dateKey])
-  const monochromePreviewFamilies = useMemo(() => {
-    const rng = createRng(hashDate(`mono-preview-${dateKey}`))
-    const shuffled = [...MONOCHROME_FAMILIES]
-
-    for (let index = shuffled.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(rng() * (index + 1))
-      ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
-    }
-
-    return shuffled.slice(0, 4)
-  }, [dateKey])
+  const isInfiniteMode = challengeMode === 'infinite'
+  const [infiniteFloor, setInfiniteFloor] = useState(1)
+  const [infiniteFloorsCompleted, setInfiniteFloorsCompleted] = useState(0)
+  const [infinitePalette, setInfinitePalette] = useState<string[]>([])
+  const [infiniteChoice, setInfiniteChoice] = useState<string[]>([])
+  const [infiniteChoiceSelected, setInfiniteChoiceSelected] = useState<string | null>(null)
+  const [showInfiniteChoiceModal, setShowInfiniteChoiceModal] = useState(false)
+  const [showInfiniteCompletionOverlay, setShowInfiniteCompletionOverlay] = useState(false)
+  const [isInfiniteCompletionOverlayFading, setIsInfiniteCompletionOverlayFading] = useState(false)
+  const [infinitePhase, setInfinitePhase] = useState<'playing' | 'choice' | 'failed'>('playing')
   const activePaletteOptions = useMemo(
     () => {
-      if (challengeMode === 'extreme') {
-        return EXTREME_PALETTE_OPTIONS
-      }
-      if (challengeMode === 'monochrome') {
-        return monochromeFamily.options
+      if (isInfiniteMode) {
+        const palette = infinitePalette.length > 0 ? infinitePalette : DEFAULT_INFINITE_PALETTE
+        return palette.map((hex) => ({ hex, group: 'Infinito' }))
       }
       return PALETTE_OPTIONS
     },
-    [challengeMode, monochromeFamily.options],
+    [infinitePalette, isInfiniteMode],
+
   )
   const puzzlePaletteHex = useMemo(
     () => activePaletteOptions.map((entry) => entry.hex),
     [activePaletteOptions],
   )
-  const puzzle = useMemo(() => buildDailyPuzzle(`${dateKey}-${challengeMode}`, puzzlePaletteHex), [dateKey, challengeMode, puzzlePaletteHex])
+  const puzzleSeed = useMemo(() => {
+    if (!isInfiniteMode) {
+      return `${dateKey}-${challengeMode}`
+    }
+
+    return `infinite:${session.user.id}:${infiniteFloor}:${infinitePalette.join(',')}`
+  }, [challengeMode, dateKey, infiniteFloor, infinitePalette, isInfiniteMode, session.user.id])
+  const puzzle = useMemo(() => buildDailyPuzzle(puzzleSeed, puzzlePaletteHex), [puzzlePaletteHex, puzzleSeed])
   const [rowColors, setRowColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   const [colColors, setColColors] = useState<Array<string | null>>(Array.from({ length: puzzle.size }, () => null))
   // Animación de relleno
@@ -369,18 +315,19 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [lastCompletedSeconds, setLastCompletedSeconds] = useState<number | null>(null)
   const [leaderboardAttempts, setLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
-  const [extremeLeaderboardAttempts, setExtremeLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
-  const [monochromeLeaderboardAttempts, setMonochromeLeaderboardAttempts] = useState<CrucigamaAttempt[]>([])
+  const [infiniteLeaderboardAttempts, setInfiniteLeaderboardAttempts] = useState<CrucigamaInfiniteEntry[]>([])
   const [hasCompletedTodayNormal, setHasCompletedTodayNormal] = useState(false)
-  const [hasCompletedTodayExtreme, setHasCompletedTodayExtreme] = useState(false)
-  const [hasCompletedTodayMonochrome, setHasCompletedTodayMonochrome] = useState(false)
   const [leaderboardLoading, setLeaderboardLoading] = useState(false)
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
+  const [infiniteLeaderboardLoading, setInfiniteLeaderboardLoading] = useState(false)
+  const [infiniteLeaderboardError, setInfiniteLeaderboardError] = useState<string | null>(null)
   const soundPlayersRef = useRef<Partial<Record<SoundName, HTMLAudioElement>>>({})
   const previousCorrectRef = useRef<Set<string>>(new Set())
   const previousCompleteRef = useRef(false)
   const startedAtRef = useRef<number | null>(null)
   const completionHandledRef = useRef(false)
+  const infiniteFadeTimeoutRef = useRef<number | null>(null)
+  const infiniteChoiceTimeoutRef = useRef<number | null>(null)
 
   const refreshCrucigamaLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true)
@@ -407,21 +354,15 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
           setLeaderboardError((ownError || allError)?.message ?? 'No se pudo cargar la tabla de CruciGama.')
         }
         setLeaderboardAttempts([])
-        setExtremeLeaderboardAttempts([])
-        setMonochromeLeaderboardAttempts([])
         setHasCompletedTodayNormal(false)
-        setHasCompletedTodayExtreme(false)
-        setHasCompletedTodayMonochrome(false)
         return
       }
 
       const ownModes = new Set((ownData ?? []).map((entry) => entry.mode))
       setHasCompletedTodayNormal(ownModes.has('normal'))
-      setHasCompletedTodayExtreme(ownModes.has('extreme'))
-      setHasCompletedTodayMonochrome(ownModes.has('monochrome'))
 
       const allAttempts = (allData ?? []).filter(
-        (attempt) => Number.isFinite(attempt.seconds) && attempt.seconds > 0 && (attempt.mode === 'normal' || attempt.mode === 'extreme' || attempt.mode === 'monochrome'),
+        (attempt) => Number.isFinite(attempt.seconds) && attempt.seconds > 0 && attempt.mode === 'normal',
       )
 
       const userIds = [...new Set(allAttempts.map((attempt) => attempt.user_id))]
@@ -459,23 +400,94 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
         .map(formatAttempt)
         .sort((a, b) => a.seconds - b.seconds)
 
-      const extreme = allAttempts
-        .filter((attempt) => attempt.mode === 'extreme')
-        .map(formatAttempt)
-        .sort((a, b) => a.seconds - b.seconds)
-
-      const monochrome = allAttempts
-        .filter((attempt) => attempt.mode === 'monochrome')
-        .map(formatAttempt)
-        .sort((a, b) => a.seconds - b.seconds)
-
       setLeaderboardAttempts(normal)
-      setExtremeLeaderboardAttempts(extreme)
-      setMonochromeLeaderboardAttempts(monochrome)
     } finally {
       setLeaderboardLoading(false)
     }
   }, [dateKey, session.user.id])
+
+  const refreshCrucigamaInfiniteLeaderboard = useCallback(async () => {
+    setInfiniteLeaderboardLoading(true)
+    setInfiniteLeaderboardError(null)
+
+    try {
+      const { data, error } = await supabase
+        .from('crucigama_infinite_attempts')
+        .select('user_id,floors')
+
+      if (error) {
+        const message = error.message?.toLowerCase() ?? ''
+        if (message.includes('crucigama_infinite_attempts')) {
+          setInfiniteLeaderboardError('Falta crear la tabla crucigama_infinite_attempts en Supabase.')
+        } else {
+          setInfiniteLeaderboardError(error.message ?? 'No se pudo cargar el leaderboard infinito de CruciGama.')
+        }
+        setInfiniteLeaderboardAttempts([])
+        return
+      }
+
+      const attempts = data ?? []
+      const userIds = [...new Set(attempts.map((attempt) => attempt.user_id))]
+
+      let usernameById: Record<string, string> = {}
+      let avatarUrlById: Record<string, string | undefined> = {}
+
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id,username,avatar_url')
+          .in('id', userIds)
+
+        usernameById = (profilesData ?? []).reduce<Record<string, string>>((acc, profile) => {
+          acc[profile.id] = profile.username
+          return acc
+        }, {})
+        avatarUrlById = (profilesData ?? []).reduce<Record<string, string | undefined>>((acc, profile) => {
+          acc[profile.id] = profile.avatar_url ?? undefined
+          return acc
+        }, {})
+      }
+
+      const rows = userIds.map((userId) => {
+        const userAttempts = attempts.filter((attempt) => attempt.user_id === userId)
+        const bestFloors = userAttempts.reduce((best, attempt) => Math.max(best, Number(attempt.floors ?? 0)), 0)
+
+        return {
+          userId,
+          username: usernameById[userId] ?? `player-${userId.slice(0, 6)}`,
+          avatarUrl: avatarUrlById[userId],
+          bestFloors,
+          runsPlayed: userAttempts.length,
+        }
+      })
+
+      rows.sort((a, b) => b.bestFloors - a.bestFloors)
+      setInfiniteLeaderboardAttempts(rows)
+    } finally {
+      setInfiniteLeaderboardLoading(false)
+    }
+  }, [])
+
+  const saveCrucigamaInfiniteRun = useCallback(async (floorsCompleted: number) => {
+    const { error } = await supabase
+      .from('crucigama_infinite_attempts')
+      .insert({
+        user_id: session.user.id,
+        floors: floorsCompleted,
+      })
+
+    if (error) {
+      const message = error.message?.toLowerCase() ?? ''
+      if (message.includes('crucigama_infinite_attempts')) {
+        setInfiniteLeaderboardError('Falta crear la tabla crucigama_infinite_attempts en Supabase para guardar el modo infinito.')
+      } else {
+        setInfiniteLeaderboardError(error.message ?? 'No se pudo guardar la racha infinita de CruciGama.')
+      }
+      return
+    }
+
+    await refreshCrucigamaInfiniteLeaderboard()
+  }, [refreshCrucigamaInfiniteLeaderboard, session.user.id])
 
   const playSound = useCallback((name: SoundName, volume = 0.14) => {
     const player = soundPlayersRef.current[name]
@@ -488,12 +500,56 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
   }, [])
 
   const applyColor = useCallback((color: string) => {
+    if (isInfiniteMode && infinitePhase !== 'playing') {
+      return
+    }
     if (!selectedTarget) return
     playSound('paint', 0.12)
     setAnimating({ type: selectedTarget.type, index: selectedTarget.index, color })
     setAnimationStep(0)
     pendingColorRef.current = { type: selectedTarget.type, index: selectedTarget.index, color }
-  }, [selectedTarget, playSound])
+  }, [infinitePhase, isInfiniteMode, selectedTarget, playSound])
+
+  const resetBoardForCurrentPuzzle = useCallback(() => {
+    setRowColors(Array.from({ length: puzzle.size }, () => null))
+    setColColors(Array.from({ length: puzzle.size }, () => null))
+    setSelectedTarget(null)
+    setAnimating(null)
+    setAnimationStep(0)
+    pendingColorRef.current = null
+    setIsComplete(false)
+    setRecentlyCorrectKeys([])
+    previousCorrectRef.current = new Set()
+    previousCompleteRef.current = false
+    completionHandledRef.current = false
+    startedAtRef.current = Date.now()
+    setElapsedSeconds(0)
+  }, [puzzle.size])
+
+  const continueInfiniteRunWithColor = useCallback((nextColor: string) => {
+    setInfinitePalette((previous) => {
+      if (previous.some((color) => color.toLowerCase() === nextColor.toLowerCase())) {
+        return previous
+      }
+      return [...previous, nextColor]
+    })
+    setInfiniteFloor((previous) => previous + 1)
+    setInfinitePhase('playing')
+    setInfiniteChoice([])
+    setInfiniteChoiceSelected(null)
+    setShowInfiniteChoiceModal(false)
+    setShowInfiniteCompletionOverlay(false)
+    setIsInfiniteCompletionOverlayFading(false)
+    if (infiniteFadeTimeoutRef.current !== null) {
+      window.clearTimeout(infiniteFadeTimeoutRef.current)
+      infiniteFadeTimeoutRef.current = null
+    }
+    if (infiniteChoiceTimeoutRef.current !== null) {
+      window.clearTimeout(infiniteChoiceTimeoutRef.current)
+      infiniteChoiceTimeoutRef.current = null
+    }
+    resetBoardForCurrentPuzzle()
+  }, [resetBoardForCurrentPuzzle])
 
   useEffect(() => {
     const players: Partial<Record<SoundName, HTMLAudioElement>> = {}
@@ -509,7 +565,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     if (!showGame) {
       const timeoutId = window.setTimeout(() => {
         setActiveTab('game')
-        setIntroTab('explanation')
+          setIntroTab('daily')
         setLeaderboardMode('normal')
       }, 0)
       return () => window.clearTimeout(timeoutId)
@@ -521,14 +577,61 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }, 0)
 
     const refreshTimeoutId = window.setTimeout(() => {
-      void refreshCrucigamaLeaderboard()
+      if (selectedMode === 'infinite') {
+        void refreshCrucigamaInfiniteLeaderboard()
+      } else {
+        void refreshCrucigamaLeaderboard()
+      }
     }, 0)
 
     return () => {
       window.clearTimeout(timeoutId)
       window.clearTimeout(refreshTimeoutId)
     }
-  }, [showGame, selectedMode, refreshCrucigamaLeaderboard])
+  }, [showGame, selectedMode, refreshCrucigamaInfiniteLeaderboard, refreshCrucigamaLeaderboard])
+
+  useEffect(() => {
+    if (!showGame || !isInfiniteMode) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const initialPalette = pickUniqueRandomColors(INFINITE_COLOR_POOL, INFINITE_START_COLORS)
+      setInfinitePalette(initialPalette)
+      setInfiniteFloor(1)
+      setInfiniteFloorsCompleted(0)
+      setInfiniteChoice([])
+      setInfiniteChoiceSelected(null)
+      setInfinitePhase('playing')
+      setShowInfiniteChoiceModal(false)
+      setShowInfiniteCompletionOverlay(false)
+      setIsInfiniteCompletionOverlayFading(false)
+      if (infiniteFadeTimeoutRef.current !== null) {
+        window.clearTimeout(infiniteFadeTimeoutRef.current)
+        infiniteFadeTimeoutRef.current = null
+      }
+      if (infiniteChoiceTimeoutRef.current !== null) {
+        window.clearTimeout(infiniteChoiceTimeoutRef.current)
+        infiniteChoiceTimeoutRef.current = null
+      }
+      setLastCompletedSeconds(null)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [isInfiniteMode, showGame])
+
+  useEffect(() => {
+    if (!showGame) {
+      return
+    }
+
+    if (isInfiniteMode) {
+      setShowObjective(true)
+      return
+    }
+
+    setShowObjective(false)
+  }, [isInfiniteMode, showGame])
 
   useEffect(() => {
     if (!showGame) {
@@ -536,24 +639,11 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }
 
     const timeoutId = window.setTimeout(() => {
-      // Start each run from a clean board so timer/state can't leak from previous games.
-      setRowColors(Array.from({ length: puzzle.size }, () => null))
-      setColColors(Array.from({ length: puzzle.size }, () => null))
-      setSelectedTarget(null)
-      setAnimating(null)
-      setAnimationStep(0)
-      pendingColorRef.current = null
-      setIsComplete(false)
-      setRecentlyCorrectKeys([])
-      previousCorrectRef.current = new Set()
-      previousCompleteRef.current = false
-      completionHandledRef.current = false
-      startedAtRef.current = Date.now()
-      setElapsedSeconds(0)
+      resetBoardForCurrentPuzzle()
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [showGame, dateKey, selectedMode, puzzle.size])
+  }, [showGame, puzzleSeed, resetBoardForCurrentPuzzle])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -563,15 +653,22 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
   }, [refreshCrucigamaLeaderboard])
 
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void refreshCrucigamaInfiniteLeaderboard()
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [refreshCrucigamaInfiniteLeaderboard])
+
+  useEffect(() => {
     if (!showGame) {
       return
     }
 
-    const blocked = challengeMode === 'extreme'
-      ? hasCompletedTodayExtreme
-      : challengeMode === 'normal'
-        ? hasCompletedTodayNormal
-        : hasCompletedTodayMonochrome
+    if (isInfiniteMode) {
+      return
+    }
+
+    const blocked = hasCompletedTodayNormal
     if (blocked) {
       const timeoutId = window.setTimeout(() => {
         setLeaderboardMode(challengeMode)
@@ -579,7 +676,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
       }, 0)
       return () => window.clearTimeout(timeoutId)
     }
-  }, [showGame, challengeMode, hasCompletedTodayMonochrome, hasCompletedTodayNormal, hasCompletedTodayExtreme])
+  }, [showGame, challengeMode, hasCompletedTodayNormal, isInfiniteMode])
 
   useEffect(() => {
     if (!showGame) {
@@ -592,6 +689,10 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     }
 
     if (activeTab !== 'game' || isComplete) {
+      return
+    }
+
+    if (isInfiniteMode && infinitePhase !== 'playing') {
       return
     }
 
@@ -609,7 +710,40 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     update()
     const intervalId = window.setInterval(update, 250)
     return () => window.clearInterval(intervalId)
-  }, [showGame, activeTab, isComplete])
+  }, [showGame, activeTab, infinitePhase, isComplete, isInfiniteMode])
+
+  useEffect(() => {
+    if (!showGame || activeTab !== 'game' || !isInfiniteMode || infinitePhase !== 'playing' || isComplete) {
+      return
+    }
+
+    if (elapsedSeconds < INFINITE_PANEL_SECONDS) {
+      return
+    }
+
+    setInfinitePhase('failed')
+    setShowInfiniteChoiceModal(false)
+    setShowInfiniteCompletionOverlay(false)
+    setIsInfiniteCompletionOverlayFading(false)
+    if (infiniteFadeTimeoutRef.current !== null) {
+      window.clearTimeout(infiniteFadeTimeoutRef.current)
+      infiniteFadeTimeoutRef.current = null
+    }
+    if (infiniteChoiceTimeoutRef.current !== null) {
+      window.clearTimeout(infiniteChoiceTimeoutRef.current)
+      infiniteChoiceTimeoutRef.current = null
+    }
+    void saveCrucigamaInfiniteRun(infiniteFloorsCompleted)
+  }, [
+    activeTab,
+    elapsedSeconds,
+    infiniteFloorsCompleted,
+    infinitePhase,
+    isComplete,
+    isInfiniteMode,
+    saveCrucigamaInfiniteRun,
+    showGame,
+  ])
 
   useEffect(() => {
     if (!isComplete || completionHandledRef.current) {
@@ -623,6 +757,38 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     const runSeconds = Math.max(1, measuredSeconds)
     setElapsedSeconds(runSeconds)
     setLastCompletedSeconds(runSeconds)
+
+    if (isInfiniteMode) {
+      const nextFloorsCompleted = infiniteFloor
+      setInfiniteFloorsCompleted(nextFloorsCompleted)
+
+      const uniqueCandidates = pickUniqueRandomColors(INFINITE_COLOR_POOL, 2, infinitePalette)
+      const candidates = uniqueCandidates.length === 2
+        ? uniqueCandidates
+        : pickUniqueRandomColors(INFINITE_COLOR_POOL, 2)
+      setInfiniteChoice(candidates)
+      setInfiniteChoiceSelected(null)
+      setInfinitePhase('choice')
+
+      setShowInfiniteCompletionOverlay(true)
+      setIsInfiniteCompletionOverlayFading(false)
+
+      if (infiniteFadeTimeoutRef.current !== null) {
+        window.clearTimeout(infiniteFadeTimeoutRef.current)
+      }
+      if (infiniteChoiceTimeoutRef.current !== null) {
+        window.clearTimeout(infiniteChoiceTimeoutRef.current)
+      }
+
+      infiniteFadeTimeoutRef.current = window.setTimeout(() => {
+        setIsInfiniteCompletionOverlayFading(true)
+      }, 850)
+
+      infiniteChoiceTimeoutRef.current = window.setTimeout(() => {
+        setShowInfiniteCompletionOverlay(false)
+        setShowInfiniteChoiceModal(true)
+      }, 1450)
+    }
 
     const saveAttempt = async () => {
       const { data: existingRow, error: readError } = await supabase
@@ -670,12 +836,34 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     void saveAttempt()
 
     const timeoutId = window.setTimeout(() => {
-      setIntroTab('explanation')
+      setIntroTab('daily')
       onBackToHome()
     }, 1300)
 
     return () => window.clearTimeout(timeoutId)
-  }, [isComplete, dateKey, challengeMode, elapsedSeconds, onBackToHome, refreshCrucigamaLeaderboard, session.user.id])
+  }, [
+    challengeMode,
+    dateKey,
+    elapsedSeconds,
+    infiniteFloor,
+    infinitePalette,
+    isComplete,
+    isInfiniteMode,
+    onBackToHome,
+    refreshCrucigamaLeaderboard,
+    session.user.id,
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (infiniteFadeTimeoutRef.current !== null) {
+        window.clearTimeout(infiniteFadeTimeoutRef.current)
+      }
+      if (infiniteChoiceTimeoutRef.current !== null) {
+        window.clearTimeout(infiniteChoiceTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Animación smooth de relleno
   useEffect(() => {
@@ -704,6 +892,9 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
   }, [animating, animationStep, puzzle.size])
 
   const openPalette = (target: Target) => {
+    if (isInfiniteMode && infinitePhase !== 'playing') {
+      return
+    }
     playSound('select', 0.1)
     setSelectedTarget(target)
     playSound('tap', 0.08)
@@ -854,6 +1045,60 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
     )
   }
 
+  const renderInfiniteChampion = () => {
+    if (infiniteLeaderboardLoading) {
+      return (
+        <p className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-500">
+          Cargando campeon de la torre infinita...
+        </p>
+      )
+    }
+
+    if (infiniteLeaderboardError) {
+      return (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {infiniteLeaderboardError}
+        </p>
+      )
+    }
+
+    const champion = infiniteLeaderboardAttempts[0]
+    if (!champion) {
+      return (
+        <p className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-500">
+          Aun no hay campeon de la torre infinita.
+        </p>
+      )
+    }
+
+    return (
+      <article className="grid grid-cols-[44px_40px_1fr_auto] items-center gap-3 rounded-xl bg-zinc-900 px-3 py-3 text-zinc-100">
+        <span className="text-center text-lg font-black text-amber-300">#1</span>
+
+        {champion.avatarUrl ? (
+          <img
+            src={champion.avatarUrl}
+            alt={`Avatar de ${champion.username}`}
+            className="h-10 w-10 rounded-full border border-zinc-600 object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-600 bg-zinc-800 text-[10px] font-black uppercase text-zinc-300">
+            {champion.username.slice(0, 2)}
+          </div>
+        )}
+
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black sm:text-base">Campeon de la torre infinita</p>
+          <p className="truncate text-xs text-zinc-300">{champion.username}</p>
+        </div>
+
+        <p className="whitespace-nowrap text-sm font-extrabold text-emerald-300 sm:text-base">
+          {champion.bestFloors} piso{champion.bestFloors !== 1 ? 's' : ''}
+        </p>
+      </article>
+    )
+  }
+
   return (
     <section className="relative overflow-visible rounded-[2rem] border border-[#f6f6f5] bg-gradient-to-br from-[#f7f3ea] via-[#f2ecdf] to-[#ede5d7] p-4 shadow-[0_20px_40px_rgba(92,75,49,0.14)] sm:p-6">
       {!showGame && (
@@ -861,31 +1106,17 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
           <div className="inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
             <button
               type="button"
-              onClick={() => setIntroTab('explanation')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'explanation' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+              onClick={() => setIntroTab('daily')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'daily' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
             >
-              Explicacion
+              Reto diario
             </button>
             <button
               type="button"
-              onClick={() => setIntroTab('normal')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'normal' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+              onClick={() => setIntroTab('infinite')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'infinite' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
             >
-              Tabla normal
-            </button>
-            <button
-              type="button"
-              onClick={() => setIntroTab('extreme')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'extreme' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Tabla extrema
-            </button>
-            <button
-              type="button"
-              onClick={() => setIntroTab('monochrome')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${introTab === 'monochrome' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Monocromatico
+              Torre infinita
             </button>
           </div>
         </div>
@@ -895,20 +1126,27 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
         <div className="mb-4 flex items-center justify-between gap-2">
           <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
             {activeTab === 'leaderboard'
-              ? `Tabla diaria · ${leaderboardMode === 'extreme' ? 'Extremo' : leaderboardMode === 'monochrome' ? 'Monocromatico' : 'Normal'}`
-              : `Reto diario · ${challengeMode === 'extreme' ? 'Extremo' : challengeMode === 'monochrome' ? 'Monocromatico' : 'Normal'}`}
+              ? `Tabla ${leaderboardMode === 'infinite' ? 'infinita' : 'diaria'} · ${leaderboardMode === 'infinite' ? 'Torre infinita' : 'Normal'}`
+              : `${challengeMode === 'infinite' ? `Torre infinita · Piso ${infiniteFloor}` : 'Reto diario · Normal'}`}
           </p>
           {activeTab === 'game' && (
             <p className="rounded-lg border border-[#d7c8af] bg-[#fff9ee] px-3 py-1 text-xs font-black text-[#6b4f34]">
-              Tiempo: {formatSeconds(elapsedSeconds)}
+              {challengeMode === 'infinite'
+                ? `Tiempo: ${formatSeconds(Math.max(0, INFINITE_PANEL_SECONDS - elapsedSeconds))} restante`
+                : `Tiempo: ${formatSeconds(elapsedSeconds)}`}
             </p>
           )}
         </div>
       )}
 
       {/* Mensaje de completado con explosión de colores */}
-      {showGame && activeTab === 'game' && isComplete && (
-        <div ref={confettiRef} className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
+      {showGame && activeTab === 'game' && (isInfiniteMode ? showInfiniteCompletionOverlay : isComplete) && (
+        <div
+          ref={confettiRef}
+          className={`fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none transition-opacity duration-500 ${
+            isInfiniteMode && isInfiniteCompletionOverlayFading ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
           <div className="relative">
             <span className="block text-3xl sm:text-5xl font-extrabold text-white drop-shadow-lg px-8 py-6 rounded-3xl animate-pop bg-gradient-to-br from-pink-400 via-yellow-300 to-green-400 border-4 border-white shadow-2xl">
               ¡Completado!
@@ -919,160 +1157,94 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
           </div>
         </div>
       )}
+
+      {showGame && activeTab === 'game' && isInfiniteMode && infinitePhase === 'choice' && showInfiniteChoiceModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-md rounded-3xl border border-[#d7c8af] bg-[#fff9ef] p-5 shadow-[0_24px_40px_rgba(0,0,0,0.25)]">
+            <p className="text-base font-black text-[#4f3a24]">Elige tu nuevo color</p>
+            <p className="mt-1 text-xs font-semibold text-[#6f5539]">Selecciona 1 color para desbloquear el siguiente piso.</p>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              {infiniteChoice.map((hex) => {
+                const selected = infiniteChoiceSelected?.toLowerCase() === hex.toLowerCase()
+                return (
+                  <button
+                    key={`infinite-choice-${hex}`}
+                    type="button"
+                    onClick={() => setInfiniteChoiceSelected(hex)}
+                    className={`h-16 w-16 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.35)] transition ${selected ? 'ring-4 ring-emerald-500' : 'hover:-translate-y-0.5 hover:scale-105'}`}
+                    style={{ backgroundColor: hex }}
+                    title={`Elegir ${hex.toUpperCase()}`}
+                  />
+                )
+              })}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[#dbcdb6] bg-[#f7efdf] px-3 py-2 text-xs font-semibold text-[#6f5539]">
+              Pisos completados: {infiniteFloorsCompleted}
+            </div>
+
+            <button
+              type="button"
+              disabled={!infiniteChoiceSelected}
+              onClick={() => {
+                if (!infiniteChoiceSelected) {
+                  return
+                }
+                continueInfiniteRunWithColor(infiniteChoiceSelected)
+              }}
+              className="mt-4 w-full rounded-xl bg-[#5f4227] px-4 py-3 text-sm font-black text-white transition hover:bg-[#6b4b2d] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Siguiente piso
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showGame && activeTab === 'game' && isInfiniteMode && infinitePhase === 'failed' && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-black text-red-700">Tiempo agotado. Fin de la torre infinita.</p>
+          <p className="mt-1 text-xs font-semibold text-red-700">Pisos completados: {infiniteFloorsCompleted}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLeaderboardMode('infinite')
+              setActiveTab('leaderboard')
+            }}
+            className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100"
+          >
+            Volver a la clasificacion
+          </button>
+        </div>
+      )}
+
       {!showGame ? (
-        <div className="mx-auto flex max-w-[920px] flex-col items-center gap-5 rounded-[1.8rem] border border-[#ddceb5] bg-gradient-to-b from-[#f8f2e7] via-[#f3ecde] to-[#eee3d2] p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_24px_35px_rgba(94,72,38,0.24)] sm:gap-6 sm:p-6 lg:p-7">
-          {introTab === 'normal' ? (
-            <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
-              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto normal</h3>
-              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy con todos los jugadores.</p>
+        <div className="mx-auto w-full max-w-[760px] space-y-4">
+          {introTab === 'daily' ? (
+            <div className="rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
+              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Clasificacion reto diario</h3>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla de hoy de todos los jugadores.</p>
               <div className="mt-4">{renderCrucigamaRows(leaderboardAttempts)}</div>
             </div>
-          ) : introTab === 'extreme' ? (
-            <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
-              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Tabla reto extremo</h3>
-              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Tabla global de hoy en modo extremo.</p>
-              <div className="mt-4">{renderCrucigamaRows(extremeLeaderboardAttempts)}</div>
-            </div>
-          ) : introTab === 'monochrome' ? (
-            <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
-              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Gama monocromatica del dia</h3>
-              <p className="mt-1 text-sm font-semibold text-[#6f5539]">
-                Te saldra una de entre estas 4 gamas cromaticas.
-              </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {monochromePreviewFamilies.map((family) => (
-                  <div key={`mono-family-${family.name}`} className="rounded-2xl border border-[#d7c8af] bg-white/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-sm font-black text-[#4f3a24]">{family.name}</p>
-                      <span className="rounded-full border border-[#d7c8af] bg-[#fff9ef] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#8a673f]">
-                        12 tonos
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-6 gap-1.5">
-                      {family.colors.map((hex) => (
-                        <div
-                          key={`mono-family-${family.name}-${hex}`}
-                          className="h-8 rounded-xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_6px_10px_rgba(72,54,29,0.14)] sm:h-9"
-                          style={{ backgroundColor: hex }}
-                          title={hex.toUpperCase()}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4">
-                {renderCrucigamaRows(monochromeLeaderboardAttempts)}
-              </div>
-            </div>
           ) : (
-          <>
-          <h2 className="text-xl font-black sm:text-3xl" aria-label="CruciGama">
-            <span className="inline-flex items-center gap-[1px]">
-              {CRUCIGAMA_LABEL.split('').map((char, index) => (
-                <span
-                  key={`crucigama-title-char-intro-${index}`}
-                  style={{ color: CRUCIGAMA_GRADIENT[Math.min(index, CRUCIGAMA_GRADIENT.length - 1)] }}
-                >
-                  {char}
-                </span>
-              ))}
-            </span>
-          </h2>
-
-          <p className="max-w-[60ch] text-sm font-semibold leading-6 text-[#5a4631] sm:text-base">
-            Mezcla colores de filas y columnas hasta igualar todas las casillas de pista. Usa el botón superior
-            junto a Salir para entrar al mapa de hoy.
-          </p>
-
-          <div className="w-full rounded-[1.6rem] border border-[#d7c6a8] bg-[#f8f3ea] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:p-5">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-black text-[#4d3c2a]">Paleta</p>
-                <p className="text-xs font-semibold text-[#735a3d]">Los colores que se usan en el juego.</p>
-              </div>
-              <div className="rounded-full border border-[#d7c6a8] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-[#8a673f]">
-                12 tonos
-              </div>
+            <div className="rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
+              <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Campeon de la torre infinita</h3>
+              <p className="mt-1 text-sm font-semibold text-[#6f5539]">Lider global por pisos consecutivos completados.</p>
+              <div className="mt-4">{renderInfiniteChampion()}</div>
+              <button
+                type="button"
+                onClick={onStartInfinite}
+                className="mt-4 w-full rounded-2xl bg-[#5f4227] px-4 py-3 text-sm font-black text-white transition hover:bg-[#6b4b2d]"
+              >
+                Jugar Torre Infinita
+              </button>
             </div>
-
-            <div className="grid grid-cols-6 gap-2 sm:gap-2.5">
-              {INTRO_PALETTE_PREVIEW.map((hex) => (
-                <div
-                  key={`preview-palette-${hex}`}
-                  className="palette-swatch h-10 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.18)] sm:h-12"
-                  style={{ backgroundColor: hex }}
-                  title={hex.toUpperCase()}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-            <div className="flex flex-col items-center rounded-[1.6rem] border border-[#d7c6a8] bg-[#f8f3ea] px-3 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:px-4 sm:py-5 lg:px-5 lg:py-6">
-              <div className="mb-4 flex w-full items-center justify-between gap-2 text-left">
-                <div>
-                  <p className="text-sm font-black text-[#4d3c2a]">Vista de ejemplo</p>
-                  <p className="text-xs font-semibold text-[#735a3d]">Así se ve el mapa antes de jugar.</p>
-                </div>
-                <div className="rounded-full border border-[#d7c6a8] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-[#8a673f]">
-                  5 x 5
-                </div>
-              </div>
-
-              <div className="example-board mx-auto flex w-full justify-center overflow-x-auto overflow-y-hidden py-1">
-                <div className="grid grid-cols-[var(--example-label-size)_repeat(5,var(--example-cell-size))] gap-[var(--example-gap)]">
-                  <div />
-                  {INTRO_COLUMN_SELECTOR_COLORS.map((hex, index) => (
-                    <div
-                      key={`example-col-${hex}`}
-                      className={`flex h-[var(--example-label-height)] items-center justify-center rounded-full border-2 border-[#c9b797] shadow-[inset_0_3px_0_rgba(255,255,255,0.78),inset_0_-3px_0_rgba(0,0,0,0.1),0_10px_14px_rgba(91,72,39,0.25)] ${index < 2 ? 'ring-2 ring-emerald-400' : ''}`}
-                      style={{ backgroundColor: hex }}
-                    >
-                    </div>
-                  ))}
-
-                  {INTRO_ROW_SELECTOR_COLORS.map((rowColor, rowIndex) => (
-                    <Fragment key={`example-row-${rowIndex}`}>
-                      <div
-                        className={`flex h-[var(--example-label-height)] items-center justify-center rounded-full border-2 border-[#c9b797] text-[9px] font-black shadow-[inset_0_3px_0_rgba(255,255,255,0.78),inset_0_-3px_0_rgba(0,0,0,0.1),0_10px_14px_rgba(91,72,39,0.25)] sm:text-xs ${rowIndex < 2 ? 'ring-2 ring-emerald-400' : ''}`}
-                        style={{ backgroundColor: rowColor }}
-                      >
-                      </div>
-                      {Array.from({ length: 5 }, (_, colIndex) => {
-                        const columnColor = INTRO_COLUMN_SELECTOR_COLORS[colIndex]
-                        const mixedColor = mixColors(rowColor, columnColor)
-                        return (
-                          <div
-                            key={`example-cell-${rowIndex}-${colIndex}`}
-                            className="example-cell relative rounded-[7px] border border-[#71573f] shadow-[inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-3px_0_rgba(0,0,0,0.12),0_10px_14px_rgba(44,30,12,0.18)] sm:rounded-[9px]"
-                            style={{ backgroundColor: mixedColor }}
-                          >
-                          </div>
-                        )
-                      })}
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[1.6rem] border border-[#d7c6a8] bg-[#f8f3ea] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] sm:p-4 lg:p-5">
-              <p className="text-sm font-black text-[#4d3c2a]">Cómo se juega</p>
-              <ol className="mt-3 space-y-3 text-left text-xs font-semibold text-[#735a3d]">
-                <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">1. Usa el botón superior de CruciGama para entrar al mapa de hoy.</li>
-                <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">2. Elige una fila o columna y aplícale un color desde la paleta.</li>
-                <li className="rounded-2xl border border-[#e0d2bd] bg-white/70 p-3">3. Cuando una casilla coincide con la pista, se marca en verde.</li>
-              </ol>
-            </div>
-            </div>
-          </>
           )}
         </div>
       ) : activeTab === 'leaderboard' ? (
         <div className="mx-auto w-full max-w-[760px] rounded-[1.8rem] border border-[#d7c8af] bg-gradient-to-b from-[#f8f2e7] to-[#eee4d4] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_26px_rgba(92,75,49,0.2)] sm:p-6">
-          <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Leaderboard CruciGama · {leaderboardMode === 'extreme' ? 'Reto extremo' : leaderboardMode === 'monochrome' ? 'Gama monocromatica' : 'Reto normal'}</h3>
-          <p className="mt-1 text-sm font-semibold text-[#6f5539]">Clasificación diaria compartida de todos los jugadores.</p>
+          <h3 className="text-lg font-black text-[#4f3a24] sm:text-xl">Leaderboard CruciGama · {leaderboardMode === 'infinite' ? 'Torre infinita' : 'Reto normal'}</h3>
+          <p className="mt-1 text-sm font-semibold text-[#6f5539]">{leaderboardMode === 'infinite' ? 'Campeon global por pisos consecutivos.' : 'Clasificación diaria compartida de todos los jugadores.'}</p>
 
           <div className="mt-3 inline-flex rounded-xl border border-[#d5c6ab] bg-[#f8f1e5] p-1">
             <button
@@ -1084,46 +1256,35 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
             </button>
             <button
               type="button"
-              onClick={() => setLeaderboardMode('extreme')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${leaderboardMode === 'extreme' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
+              onClick={() => setLeaderboardMode('infinite')}
+              className={`rounded-lg px-3 py-1 text-xs font-black transition ${leaderboardMode === 'infinite' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
             >
-              Extremo
-            </button>
-            <button
-              type="button"
-              onClick={() => setLeaderboardMode('monochrome')}
-              className={`rounded-lg px-3 py-1 text-xs font-black transition ${leaderboardMode === 'monochrome' ? 'bg-[#5f4227] text-white' : 'text-[#694c31] hover:bg-[#efe3d1]'}`}
-            >
-              Monocromatico
+              Torre infinita
             </button>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-[#dbcdb6] bg-[#fff9ef] p-4">
-            <p className="text-xs font-black uppercase tracking-wide text-[#886848]">Tiempo de hoy</p>
-            <p className="mt-2 text-3xl font-black text-[#4f3a24]">
-              {lastCompletedSeconds != null
-                ? formatSeconds(lastCompletedSeconds)
-                : (() => {
-                    const sourceAttempts = leaderboardMode === 'extreme'
-                      ? extremeLeaderboardAttempts
-                      : leaderboardMode === 'monochrome'
-                        ? monochromeLeaderboardAttempts
-                        : leaderboardAttempts
-                    const todayAttempt = sourceAttempts.find((attempt) => attempt.userId === session.user.id)
-                    return todayAttempt ? formatSeconds(todayAttempt.seconds) : '--:--'
-                  })()}
-            </p>
-          </div>
+          {leaderboardMode === 'infinite' ? (
+            <div className="mt-4 space-y-2">{renderInfiniteChampion()}</div>
+          ) : (
+            <>
+              <div className="mt-4 rounded-2xl border border-[#dbcdb6] bg-[#fff9ef] p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-[#886848]">Tiempo de hoy</p>
+                <p className="mt-2 text-3xl font-black text-[#4f3a24]">
+                  {lastCompletedSeconds != null
+                    ? formatSeconds(lastCompletedSeconds)
+                    : (() => {
+                        const sourceAttempts = leaderboardAttempts
+                        const todayAttempt = sourceAttempts.find((attempt) => attempt.userId === session.user.id)
+                        return todayAttempt ? formatSeconds(todayAttempt.seconds) : '--:--'
+                      })()}
+                </p>
+              </div>
 
-          <div className="mt-4 space-y-2">
-            {renderCrucigamaRows(
-              leaderboardMode === 'extreme'
-                ? extremeLeaderboardAttempts
-                : leaderboardMode === 'monochrome'
-                  ? monochromeLeaderboardAttempts
-                  : leaderboardAttempts,
-            )}
-          </div>
+              <div className="mt-4 space-y-2">
+                {renderCrucigamaRows(leaderboardAttempts)}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -1369,7 +1530,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
               className="palette-swatch h-14 w-14 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.35)] transition hover:-translate-y-0.5 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
               style={{ backgroundColor: option.hex }}
               title={option.hex.toUpperCase()}
-              disabled={!selectedTarget}
+              disabled={!selectedTarget || (isInfiniteMode && infinitePhase !== 'playing')}
             />
           ))}
         </div>
@@ -1392,7 +1553,7 @@ export function ColorFusionTab({ dateKey, session, showGame, selectedMode, onBac
                     className="palette-swatch h-14 w-14 rounded-2xl border border-[#8d6b46] shadow-[inset_0_2px_0_rgba(255,255,255,0.45),inset_0_-2px_0_rgba(0,0,0,0.1),0_8px_12px_rgba(72,54,29,0.35)] transition hover:-translate-y-0.5 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
                     style={{ backgroundColor: option.hex }}
                     title={option.hex.toUpperCase()}
-                    disabled={!selectedTarget}
+                    disabled={!selectedTarget || (isInfiniteMode && infinitePhase !== 'playing')}
                   />
                 ))}
             </div>
